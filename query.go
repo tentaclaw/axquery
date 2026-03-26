@@ -233,6 +233,20 @@ func (a *elementAdapter) IsSelected() bool {
 	return v
 }
 
+func (a *elementAdapter) queryParent() (queryNode, error) {
+	if a.el == nil {
+		return nil, nil
+	}
+	parent, err := a.el.Parent()
+	if err != nil {
+		return nil, err
+	}
+	if parent == nil {
+		return nil, nil
+	}
+	return newElementAdapter(parent), nil
+}
+
 func (a *elementAdapter) queryChildren() ([]queryNode, error) {
 	if a.reader == nil {
 		return nil, nil

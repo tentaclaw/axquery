@@ -821,6 +821,24 @@ func TestSearchDFS_MaxResults_DoneInSiblingLoop(t *testing.T) {
 
 // === newElementAdapter non-nil path ===
 
+// === elementAdapter implements traversableNode ===
+
+func TestElementAdapter_ImplementsTraversableNode(t *testing.T) {
+	// Compile-time assertion: elementAdapter must satisfy traversableNode.
+	var _ traversableNode = (*elementAdapter)(nil)
+}
+
+func TestElementAdapter_QueryParent_NilElement(t *testing.T) {
+	a := newElementAdapter(nil)
+	parent, err := a.queryParent()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if parent != nil {
+		t.Fatal("expected nil parent for nil element")
+	}
+}
+
 func TestNewElementAdapter_NonNil(t *testing.T) {
 	// Construct a zero-valued *ax.Element to exercise the non-nil branch.
 	// We don't call AX methods on it; just verify adapter fields are set.

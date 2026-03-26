@@ -12,6 +12,7 @@ import (
 // propagate that error without panicking.
 type Selection struct {
 	elems    []*ax.Element
+	nodes    []queryNode // internal: parallel to elems for traversal; may be nil
 	err      error
 	selector string
 }
@@ -77,10 +78,14 @@ func (s *Selection) First() *Selection {
 			selector: s.selector,
 		}
 	}
-	return &Selection{
+	result := &Selection{
 		elems:    s.elems[:1],
 		selector: s.selector,
 	}
+	if s.nodes != nil {
+		result.nodes = s.nodes[:1]
+	}
+	return result
 }
 
 // Last returns a new Selection containing only the last element.
@@ -96,10 +101,15 @@ func (s *Selection) Last() *Selection {
 			selector: s.selector,
 		}
 	}
-	return &Selection{
-		elems:    s.elems[len(s.elems)-1:],
+	n := len(s.elems)
+	result := &Selection{
+		elems:    s.elems[n-1:],
 		selector: s.selector,
 	}
+	if s.nodes != nil {
+		result.nodes = s.nodes[n-1:]
+	}
+	return result
 }
 
 // Eq returns a new Selection containing only the element at index i (0-based).
@@ -115,10 +125,14 @@ func (s *Selection) Eq(i int) *Selection {
 			selector: s.selector,
 		}
 	}
-	return &Selection{
+	result := &Selection{
 		elems:    s.elems[i : i+1],
 		selector: s.selector,
 	}
+	if s.nodes != nil {
+		result.nodes = s.nodes[i : i+1]
+	}
+	return result
 }
 
 // Slice returns a new Selection containing elements in [start, end).
@@ -143,8 +157,12 @@ func (s *Selection) Slice(start, end int) *Selection {
 			selector: s.selector,
 		}
 	}
-	return &Selection{
+	result := &Selection{
 		elems:    s.elems[start:end],
 		selector: s.selector,
 	}
+	if s.nodes != nil {
+		result.nodes = s.nodes[start:end]
+	}
+	return result
 }

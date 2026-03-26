@@ -1,6 +1,6 @@
 # 决策记录
 
-> 最后更新：2026-03-26（Task 6 完成后）
+> 最后更新：2026-03-26（Task 7 完成后）
 
 ## 1. 已确认决策
 
@@ -41,6 +41,11 @@
 | 33 | **子节点加载错误静默跳过** | 搜索时遇到无法读取子节点的元素（AX 错误很常见），跳过该子树继续搜索，而非中止整个查询 | 2026-03-26 |
 | 34 | **elementAdapter.GetAttr 特殊映射** | `title`/`description`/`role`/`subrole`/`roleDescription` 走专用方法；其余走通用 `Attribute(name)` | 2026-03-26 |
 | 35 | **错误类型用 sentinel + wrapper 双层设计** | sentinel (`ErrNotFound` 等) 配合 wrapper 结构体 (`NotFoundError` 等)；支持 `errors.Is` 和 `errors.As` | 2026-03-26 |
+| 36 | **traversableNode 接口扩展 queryNode** | 引入 `traversableNode`（extends `queryNode` + `queryParent()`）实现双向遍历；Parent/Siblings/Closest 等方法需要向上访问父节点 | 2026-03-26 |
+| 37 | **Selection 内部持有 nodes []queryNode** | Selection 新增 `nodes` 字段，保存产生当前 Selection 的内部节点引用；使 First/Last/Eq/Slice 结果仍可执行 traversal 操作（chaining） | 2026-03-26 |
+| 38 | **遍历子节点/父节点错误静默跳过** | 与决策 #33 一致：traversal 中遇到 AX 错误时跳过该元素继续处理，而非中止整个操作 | 2026-03-26 |
+| 39 | **遍历结果按指针去重** | 当多个 Selection 元素的子树可能产生重叠结果时（如 Find/Siblings），用 `map[queryNode]bool` 去重 | 2026-03-26 |
+| 40 | **Siblings 不包含自身** | 与 goquery/jQuery 语义一致：Siblings() 返回同级兄弟元素但排除 Selection 中的当前元素 | 2026-03-26 |
 
 ## 2. 关键发现
 
@@ -160,7 +165,8 @@ rootResolver（根节点获取接口）
 - [x] axquery 包：选择器解析器（Task 2-4, 97.1% coverage）
 - [x] axquery 包：Selection 类型 + 基本缩减（Task 5, 100% coverage）
 - [x] axquery 包：BFS/DFS 搜索引擎（Task 6, 95.9% total coverage）
-- [ ] axquery 包：Selection 遍历方法（Find/Children/Parent）— Task 7, next
+- [x] axquery 包：Selection 遍历方法（Find/Children/Parent）— Task 7, 95.1% coverage
+- [ ] axquery 包：Selection 过滤方法（Filter/Not/Has）— Task 8, next
 - [ ] axquery 包：属性读取 + 交互动作
 - [ ] axquery 包：goja JS 运行时 + $ax() 全局 API
 

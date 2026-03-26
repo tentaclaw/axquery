@@ -1,6 +1,6 @@
 # Level 1: axquery 包设计
 
-> 状态：实现中 — Phase 1 完成（选择器），Phase 2 进行中（Selection 核心）
+> 状态：实现中 — Phase 1 完成（选择器），Phase 2 进行中（Selection 核心 + 遍历方法已完成）
 > 包路径：`github.com/tentaclaw/axquery`
 > 语言：Go
 > 参考：[goquery](https://github.com/PuerkitoBio/goquery)（API 风格）、[cascadia](https://github.com/andybalholm/cascadia)（选择器模型）
@@ -101,8 +101,10 @@ package axquery
 
 // Selection 是核心集合类型（已实现 — selection.go）
 // 与设计稿的关键差异：Selection 不持有 app/root 引用，仅持有元素切片
+// Task 7 新增：nodes 字段保存内部 queryNode 引用，支持遍历链式调用
 type Selection struct {
     elems    []*ax.Element  // 底层 Level 0 元素
+    nodes    []queryNode    // 内部遍历节点（traversal 方法产生时填充）
     err      error          // 链式调用中的错误暂存
     selector string         // 产生此 Selection 的选择器
 }
@@ -202,11 +204,10 @@ func (s *Selection) Eq(index int) *Selection
 func (s *Selection) Slice(start, end int) *Selection
 ```
 
-### 4.6 遍历方法（计划中 — Task 7）
+### 4.6 遍历方法（已实现 ✅ — Task 7）
 
 ```go
 func (s *Selection) Find(selector string) *Selection
-func (s *Selection) FindMatcher(m Matcher) *Selection
 func (s *Selection) Children() *Selection
 func (s *Selection) ChildrenFiltered(selector string) *Selection
 func (s *Selection) Parent() *Selection
@@ -218,6 +219,10 @@ func (s *Selection) Siblings() *Selection
 func (s *Selection) Next() *Selection
 func (s *Selection) Prev() *Selection
 ```
+
+> **内部架构：** 遍历方法通过 `traversableNode` 接口（extends `queryNode` + `queryParent()`）实现双向树遍历。
+> Selection 内部持有 `nodes []queryNode`，使得 First/Last/Eq/Slice 产生的子 Selection 仍可继续 traversal 链式调用。
+> 所有遍历结果通过指针去重避免重复，AX 错误静默跳过。
 
 ### 4.7 过滤/判断/属性/动作/等待（计划中 — Task 8-13）
 
@@ -287,6 +292,14 @@ Query(app, sel, opts...)                    ← 公共入口（薄 CGo 桥接）
        └─ queryFromRoot(root, sel, opts)    ← 核心查询逻辑
             ├─ selector.Compile(sel)        ← 编译选择器
             └─ searchBFS / searchDFS        ← 遍历 queryNode 树
+
+Selection traversal methods:                ← Task 7 新增
+  └─ traversableNode (extends queryNode + queryParent())
+       ├─ findInSubtrees()                  ← Find
+       ├─ getChildren/getChildrenFiltered() ← Children
+       ├─ getParents/getAncestors()         ← Parent/Parents
+       ├─ getClosest()                      ← Closest
+       └─ getSiblings/getNext/getPrev()     ← Siblings/Next/Prev
 ```
 
 **关键接口：**
@@ -465,7 +478,7 @@ axquery/
 │                         //   rootResolver, queryWithResolver
 ├── options.go            // QueryOptions + functional options     ✅
 ├── errors.go             // 错误类型 (sentinel + wrapper)         ✅
-├── traversal.go          // Find/Children/Parent/Closest 等       计划
+├── traversal.go          // Find/Children/Parent/Closest 等       ✅
 ├── filter.go             // Filter/Not/Has/First/Last/Eq          计划
 ├── property.go           // Attr/Text/Val/Role/Title 等           计划
 ├── action.go             // Click/SetValue/TypeText/Press          计划
@@ -482,7 +495,7 @@ axquery/
 │   ├── globals.go
 │   ├── bridge.go
 │   └── executor.go
-├── *_test.go             // 各文件对应测试                         ✅ (95.9% coverage)
+├── *_test.go             // 各文件对应测试                         ✅ (~95.9% coverage)
 └── docs/
     ├── architecture.md
     ├── decisions.md
