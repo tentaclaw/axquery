@@ -1,6 +1,6 @@
 # Level 1: axquery 包设计
 
-> 状态：实现中 — Phase 1 完成（选择器），Phase 2 进行中（Selection 核心 + 遍历 + 过滤方法已完成）
+> 状态：实现中 — Phase 1 完成（选择器），Phase 2 进行中（Selection 核心 + 遍历 + 过滤 + 属性读取方法已完成）
 > 包路径：`github.com/tentaclaw/axquery`
 > 语言：Go
 > 参考：[goquery](https://github.com/PuerkitoBio/goquery)（API 风格）、[cascadia](https://github.com/andybalholm/cascadia)（选择器模型）
@@ -243,25 +243,29 @@ func (s *Selection) Contains(text string) *Selection
 > Is 返回 bool，invalid selector 或空 Selection 返回 false。
 > Contains 按 title 属性子串匹配。
 
-### 4.8 属性读取/动作/等待（计划中 — Task 9-13）
+### 4.8 属性读取（已实现 ✅ — Task 9）
 
-设计见下方 §4.8.x（暂未实现，API 签名可能在实现时微调）。
-
-#### 4.8.1 属性读取
+所有属性方法操作 Selection 的**第一个元素**（goquery/jQuery 语义），空/错误 Selection 返回零值。
 
 ```go
-func (s *Selection) Attr(name string) (string, bool)
+func (s *Selection) Attr(name string) string       // 命名属性；name="role" 时走 GetRole()
 func (s *Selection) AttrOr(name, defaultVal string) string
-func (s *Selection) Text() string
-func (s *Selection) Val() string
-func (s *Selection) Role() string
-func (s *Selection) Title() string
-func (s *Selection) Description() string
+func (s *Selection) Role() string                   // GetRole() 快捷方式
+func (s *Selection) Title() string                  // Attr("title")
+func (s *Selection) Description() string            // Attr("description")
+func (s *Selection) Val() string                    // Attr("value")
+func (s *Selection) Text() string                   // 递归收集 title 属性，空格连接
 func (s *Selection) IsVisible() bool
 func (s *Selection) IsEnabled() bool
+func (s *Selection) IsFocused() bool
+func (s *Selection) IsSelected() bool
 ```
 
-#### 4.8.2 遍历回调
+> **内部架构：** 所有方法共享 `firstNode()` 守卫（处理 nil/empty/error），减少重复。
+> Text() 通过 `collectText()` 深度优先递归收集 title。
+> Bounds() 延迟到后续 Task（action/scroll 需要时实现）。
+
+#### 4.8.2 遍历回调（计划中 — Task 10）
 
 ```go
 func (s *Selection) Each(fn func(int, *Selection)) *Selection
@@ -489,7 +493,7 @@ axquery/
 ├── errors.go             // 错误类型 (sentinel + wrapper)         ✅
 ├── traversal.go          // Find/Children/Parent/Closest 等       ✅
 ├── filter.go             // Filter/Not/Has/Is/Contains            ✅
-├── property.go           // Attr/Text/Val/Role/Title 等           计划
+├── property.go           // Attr/Text/Val/Role/Title 等           ✅
 ├── action.go             // Click/SetValue/TypeText/Press          计划
 ├── iteration.go          // Each/EachWithBreak/Map                 计划
 ├── waiting.go            // WaitUntil/WaitGone                     计划
@@ -504,7 +508,7 @@ axquery/
 │   ├── globals.go
 │   ├── bridge.go
 │   └── executor.go
-├── *_test.go             // 各文件对应测试                         ✅ (~95.1% root / 97.1% selector)
+├── *_test.go             // 各文件对应测试                         ✅ (~95.4% root / 97.1% selector)
 └── docs/
     ├── architecture.md
     ├── decisions.md

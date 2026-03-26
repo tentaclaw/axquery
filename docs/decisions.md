@@ -1,6 +1,6 @@
 # 决策记录
 
-> 最后更新：2026-03-26（Task 8 完成后）
+> 最后更新：2026-03-26（Task 9 完成后）
 
 ## 1. 已确认决策
 
@@ -51,6 +51,11 @@
 | 43 | **Is 返回 bool 而非 Selection** | Is(sel) 是判断方法，不走链式调用；invalid selector 或空 Selection 返回 false 而非 error | 2026-03-26 |
 | 44 | **Contains 基于 title 子串匹配** | Contains(text) 按 GetAttr("title") 做子串匹配，是 AX 场景下最常用的文本过滤方式；与 jQuery 的 `:contains` 语义类似 | 2026-03-26 |
 | 45 | **FilterFunction 传入单元素 Selection** | 回调 fn(i, sel) 中的 sel 是包含单个元素的 Selection，保持与 Each/goquery 的一致性 | 2026-03-26 |
+| 46 | **属性方法操作首元素** | 所有 property 方法（Attr/Role/Title/Text/IsVisible 等）仅操作 Selection 的第一个元素，匹配 goquery/jQuery 语义 | 2026-03-26 |
+| 47 | **firstNode() 共享守卫** | property.go 中提取 `firstNode()` 方法统一处理 empty/error/nil 守卫，减少重复代码 | 2026-03-26 |
+| 48 | **Text() 递归收集 title** | Text() 通过深度优先递归收集元素及后代的 `title` 属性，以空格连接；AX 场景下 title 是最通用的文本标识 | 2026-03-26 |
+| 49 | **Attr("role") 特殊处理** | Attr(name) 当 name="role" 时走 GetRole() 而非 GetAttr，保持与 Role() 方法的一致性 | 2026-03-26 |
+| 50 | **Bounds() 延迟到后续 Task** | Task 9 计划中的 Bounds() 暂未实现，因当前 mock 架构不自然支持几何信息；将在 action/scroll 相关 Task 中按需添加 | 2026-03-26 |
 
 ## 2. 关键发现
 
@@ -109,7 +114,7 @@ rootResolver（根节点获取接口）
 
 **成果：** query 引擎的 BFS/DFS 逻辑、elementAdapter 的属性映射、queryWithResolver 的根解析都可以纯 mock 单测。CGo 依赖仅存在于两个薄封装 (`appRootResolver.resolveRoot` 和 `Query`)，它们只在集成测试中覆盖。
 
-总覆盖率 95.9%，满足 95%+ 要求。
+总覆盖率 96.0%，满足 95%+ 要求。
 
 ## 3. 旧系统审计摘要
 
@@ -172,7 +177,8 @@ rootResolver（根节点获取接口）
 - [x] axquery 包：BFS/DFS 搜索引擎（Task 6, 95.9% total coverage）
 - [x] axquery 包：Selection 遍历方法（Find/Children/Parent）— Task 7, 95.1% coverage
 - [x] axquery 包：Selection 过滤方法（Filter/Not/Has/Is/Contains）— Task 8, 95.1% coverage
-- [ ] axquery 包：属性读取 — Task 9, next
+- [x] axquery 包：属性读取（Attr/Text/Val/Role/Title/IsVisible等）— Task 9, 95.4% coverage
+- [ ] axquery 包：遍历回调（Each/Map）— Task 10, next
 - [ ] axquery 包：属性读取 + 交互动作
 - [ ] axquery 包：goja JS 运行时 + $ax() 全局 API
 
