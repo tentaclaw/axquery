@@ -1,6 +1,6 @@
 # Level 1: axquery 包设计
 
-> 状态：实现中 — Phase 1 完成（选择器），Phase 2 进行中（Selection 核心 + 遍历 + 过滤 + 属性读取 + 迭代 + 交互动作已完成）
+> 状态：实现中 — Phase 1 完成（选择器），Phase 2 进行中（Selection 核心 + 遍历 + 过滤 + 属性读取 + 迭代 + 交互动作 + 等待方法已完成）
 > 包路径：`github.com/tentaclaw/axquery`
 > 语言：Go
 > 参考：[goquery](https://github.com/PuerkitoBio/goquery)（API 风格）、[cascadia](https://github.com/andybalholm/cascadia)（选择器模型）
@@ -301,14 +301,25 @@ func (s *Selection) Perform(action string) *Selection           // 任意 AX act
 > 内部通过 `modifierMap` 转换为 `ax.Modifier`。
 > `Focus()` 通过 `performAction("AXRaise")` 实现（ax 包无直接 SetFocused API）。
 
-#### 4.8.4 等待
+#### 4.8.4 等待方法（已实现 ✅ — Task 12）
+
+所有等待方法返回 `*Selection` 自身支持链式调用。超时时设置 `s.err` 为 `TimeoutError`（wraps `ErrTimeout`）。
+默认轮询间隔 200ms（`DefaultPollInterval`）。
 
 ```go
+const DefaultPollInterval = 200 * time.Millisecond
+
 func (s *Selection) WaitUntil(fn func(*Selection) bool, timeout time.Duration) *Selection
 func (s *Selection) WaitGone(timeout time.Duration) *Selection
 func (s *Selection) WaitVisible(timeout time.Duration) *Selection
 func (s *Selection) WaitEnabled(timeout time.Duration) *Selection
 ```
+
+> **内部架构：** `WaitUntil` 是通用轮询核心，`WaitVisible`/`WaitEnabled`/`WaitGone` 均为其特化。
+> `sleepFn`/`nowFn` 包级变量（与 `typeTextFn`/`keyPressFn` 模式一致）允许纯单元测试控制时间。
+> `WaitGone` 检查 `GetRole() == ""` 判断元素消失（真实 AX 元素被销毁后 Role() 返回错误）。
+> `WaitVisible`/`WaitEnabled` 依赖 AX 属性的实时性（每次调用都通过 AX API 查询，非缓存）。
+> 错误 Selection 上的 wait 方法立即返回（不轮询）。
 
 ## 5. Query 引擎架构（已实现 ✅）
 
@@ -512,7 +523,7 @@ axquery/
 ├── property.go           // Attr/Text/Val/Role/Title 等           ✅
 ├── action.go             // Click/SetValue/TypeText/Press/Focus/Perform  ✅
 ├── iteration.go          // Each/EachWithBreak/Map/EachIter          ✅
-├── waiting.go            // WaitUntil/WaitGone                     计划
+├── waiting.go            // WaitUntil/WaitGone/WaitVisible/WaitEnabled  ✅
 ├── scroll.go             // ScrollIntoView/ScrollDown/ScrollUp     计划
 ├── selector/             // 选择器子包                             ✅
 │   ├── ast.go            // 选择器 AST 类型                       ✅
@@ -524,7 +535,7 @@ axquery/
 │   ├── globals.go
 │   ├── bridge.go
 │   └── executor.go
-├── *_test.go             // 各文件对应测试                         ✅ (~94.9% root / 97.1% selector)
+├── *_test.go             // 各文件对应测试                         ✅ (~94.9% root / 97.1% selector / 95.5% total)
 └── docs/
     ├── architecture.md
     ├── decisions.md

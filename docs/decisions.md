@@ -1,6 +1,6 @@
 # 决策记录
 
-> 最后更新：2026-03-26（Task 11 完成后）
+> 最后更新：2026-03-26（Task 12 完成后）
 
 ## 1. 已确认决策
 
@@ -67,6 +67,12 @@
 | 59 | **TypeText/Press 通过包级函数变量注入** | `typeTextFn`（默认 `ax.TypeText`）和 `keyPressFn`（默认 `ax.KeyPress`）允许纯单元测试替换 CGo 键盘函数 | 2026-03-26 |
 | 60 | **Press 修饰符使用字符串映射** | `Press(key, "command", "shift")` 接受人类可读的修饰符字符串，内部通过 `modifierMap` 转换为 `ax.Modifier`；支持别名（cmd/command、alt/option、ctrl/control） | 2026-03-26 |
 | 61 | **空 Selection 的 action 报 ErrNotActionable** | 在空/无 actionable 节点的 Selection 上调用交互方法返回 `NotActionableError`，而非 `NotFoundError`（更精确地描述操作失败原因） | 2026-03-26 |
+| 62 | **WaitUntil 通用轮询核心** | `WaitUntil(fn, timeout)` 是所有等待方法的基础；`WaitVisible`/`WaitEnabled`/`WaitGone` 均为其特化。超时返回 `TimeoutError` (wraps `ErrTimeout`) | 2026-03-26 |
+| 63 | **默认轮询间隔 200ms** | `DefaultPollInterval = 200ms`，在响应性和 CPU 使用之间取平衡；作为常量暴露而非 option，简化 API | 2026-03-26 |
+| 64 | **sleepFn/nowFn 包级变量注入时间** | 与 `typeTextFn`/`keyPressFn` 模式一致：`sleepFn`（默认 `time.Sleep`）和 `nowFn`（默认 `time.Now`）允许纯单元测试控制时间流逝，避免真实 sleep | 2026-03-26 |
+| 65 | **WaitGone 检查 Role() == "" 判断元素消失** | 真实 AX 元素被销毁后 `Role()` 返回错误 → `GetRole()` 返回 ""。WaitGone 以此为信号而非 re-query，因为 Selection 不持有 root/resolver 引用（决策 #28） | 2026-03-26 |
+| 66 | **错误 Selection 上 WaitGone 立即返回** | 已 errored 的 Selection 语义上等同于"已消失"，WaitGone 直接返回不轮询 | 2026-03-26 |
+| 67 | **WaitVisible/WaitEnabled 依赖 AX 属性的实时性** | `IsHidden()`/`IsEnabled()` 每次调用都通过 AX API 实时查询（非缓存），因此轮询中无需 re-query Selection | 2026-03-26 |
 
 ## 2. 关键发现
 
@@ -191,7 +197,8 @@ rootResolver（根节点获取接口）
 - [x] axquery 包：属性读取（Attr/Text/Val/Role/Title/IsVisible等）— Task 9, 95.4% coverage
 - [x] axquery 包：迭代回调（Each/EachWithBreak/Map/EachIter）— Task 10, 95.6% coverage
 - [x] axquery 包：交互动作（Click/SetValue/TypeText/Press/Focus/Perform）— Task 11, 94.9% coverage
-- [ ] axquery 包：等待方法（WaitUntil/WaitGone）— Task 12, next
+- [x] axquery 包：等待方法（WaitUntil/WaitGone/WaitVisible/WaitEnabled）— Task 12, 95.5% coverage
+- [ ] axquery 包：滚动方法（ScrollIntoView/ScrollDown/ScrollUp）— Task 13, next
 - [ ] axquery 包：goja JS 运行时 + $ax() 全局 API
 
 ### Phase 2: 应用层（app 基础）
