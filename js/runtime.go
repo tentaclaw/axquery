@@ -37,6 +37,25 @@ func (e *ScriptError) Unwrap() error { return e.Wrapped }
 // RuntimeOption — functional options
 // ---------------------------------------------------------------------------
 
+// SystemBridge abstracts OS-level operations (clipboard, keyboard) so that
+// tests can inject fakes without touching the real system.
+type SystemBridge interface {
+	ClipboardRead() (string, error)
+	ClipboardWrite(text string) error
+	KeyPress(key string, mods ...ax.Modifier) error
+	TypeText(text string) error
+}
+
+// defaultBridge delegates to the ax package functions.
+type defaultBridge struct{}
+
+func (defaultBridge) ClipboardRead() (string, error)   { return ax.ClipboardRead() }
+func (defaultBridge) ClipboardWrite(text string) error { return ax.ClipboardWrite(text) }
+func (defaultBridge) KeyPress(key string, mods ...ax.Modifier) error {
+	return ax.KeyPress(key, mods...)
+}
+func (defaultBridge) TypeText(text string) error { return ax.TypeText(text) }
+
 // RuntimeOption configures a Runtime.
 type RuntimeOption func(*runtimeConfig)
 
@@ -44,6 +63,7 @@ type runtimeConfig struct {
 	timeout time.Duration
 	onLog   func(level, msg string)
 	onError func(err error)
+	bridge  SystemBridge
 }
 
 // WithTimeout sets the maximum execution time for each Execute/ExecuteFile call.
@@ -63,15 +83,25 @@ func WithOnError(fn func(err error)) RuntimeOption {
 	return func(c *runtimeConfig) { c.onError = fn }
 }
 
+// WithBridge sets the system bridge for clipboard/keyboard operations.
+// If not set, a default bridge that delegates to the ax package is used.
+func WithBridge(b SystemBridge) RuntimeOption {
+	return func(c *runtimeConfig) { c.bridge = b }
+}
+
 // ---------------------------------------------------------------------------
 // Runtime
 // ---------------------------------------------------------------------------
 
 // Runtime manages a goja JavaScript VM with axquery bindings.
 type Runtime struct {
-	vm   *goja.Runtime
-	app  *ax.Application
-	conf runtimeConfig
+	vm        *goja.Runtime
+	app       *ax.Application
+	conf      runtimeConfig
+	bridge    SystemBridge
+	env       map[string]string      // $env
+	input     map[string]interface{} // $input
+	outputObj *goja.Object           // $output (JS-side writable)
 }
 
 // New creates a new JavaScript runtime with the given options.
@@ -80,10 +110,16 @@ func New(opts ...RuntimeOption) *Runtime {
 	for _, o := range opts {
 		o(&conf)
 	}
-	rt := &Runtime{
-		vm:   goja.New(),
-		conf: conf,
+	bridge := conf.bridge
+	if bridge == nil {
+		bridge = defaultBridge{}
 	}
+	rt := &Runtime{
+		vm:     goja.New(),
+		conf:   conf,
+		bridge: bridge,
+	}
+	rt.injectGlobals()
 	return rt
 }
 
@@ -92,10 +128,35 @@ func (r *Runtime) SetApp(app *ax.Application) {
 	r.app = app
 }
 
+// SetEnv sets environment variables accessible as $env in JS.
+func (r *Runtime) SetEnv(env map[string]string) {
+	r.env = env
+	r.injectEnv()
+}
+
+// SetInput sets the input parameters accessible as $input in JS.
+func (r *Runtime) SetInput(input map[string]interface{}) {
+	r.input = input
+	r.injectInput()
+}
+
+// Output returns the current $output object contents as a Go map.
+func (r *Runtime) Output() map[string]interface{} {
+	if r.outputObj == nil {
+		return nil
+	}
+	exported := r.outputObj.Export()
+	if m, ok := exported.(map[string]interface{}); ok {
+		return m
+	}
+	return nil
+}
+
 // Reset discards the current VM state and creates a fresh goja runtime.
-// Options (timeout, callbacks) are preserved.
+// Options (timeout, callbacks) are preserved. Globals are re-injected.
 func (r *Runtime) Reset() {
 	r.vm = goja.New()
+	r.injectGlobals()
 }
 
 // Execute runs a JavaScript string and returns the result.

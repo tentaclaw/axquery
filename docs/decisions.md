@@ -1,6 +1,6 @@
 # 决策记录
 
-> 最后更新：2026-03-26（Task 14 完成后）
+> 最后更新：2026-03-27（Task 15 完成后）
 
 ## 1. 已确认决策
 
@@ -83,6 +83,13 @@
 | 75 | **ScriptError 统一包装 JS 错误** | 所有 `Execute`/`ExecuteFile` 的 JS 错误（语法错误、throw、中断）统一包装为 `*ScriptError`，携带 Message + Filename + Wrapped；支持 `errors.As` 和 `errors.Unwrap` | 2026-03-26 |
 | 76 | **超时通过 time.AfterFunc + vm.Interrupt 实现** | 不使用 context（goja 不支持 context 取消），改用 `time.AfterFunc` 调度 `vm.Interrupt("execution timeout")`，execute 结束后 `timer.Stop()` + `vm.ClearInterrupt()` 清理 | 2026-03-26 |
 | 77 | **ExecuteFile 复用 execute 内核** | `ExecuteFile(path)` 只做 `os.ReadFile` + 委托 `execute(script, filename)`，避免代码重复；filename 传入用于 ScriptError 的源定位 | 2026-03-26 |
+| 78 | **SystemBridge 接口抽象 OS 操作** | `$clipboard` 和 `$keyboard` 通过 `SystemBridge` 接口操作（`ClipboardRead/Write`、`KeyPress`、`TypeText`），测试可注入 fake bridge 验证行为和参数；默认 `defaultBridge` 委托 ax 包函数 | 2026-03-27 |
+| 79 | **WithBridge functional option** | 与其他 RuntimeOption 保持一致；不传则使用 `defaultBridge{}`（ax.ClipboardRead 等） | 2026-03-27 |
+| 80 | **$env/$input/$output 全局对象** | `$env` 为只读字符串 map（SetEnv 重新注入）；`$input` 为任意结构 map；`$output` 为 JS 侧可写的 goja.Object，Go 侧通过 `Output()` 导出 | 2026-03-27 |
+| 81 | **console.log/warn/error 统一走 onLog callback** | 与 `$log` 共用 `emitLog(level, args)` 路径，保持单一日志出口；level 分为 "log"/"warn"/"error" | 2026-03-27 |
+| 82 | **injectGlobals 在 New + Reset 中调用** | 确保 Reset 后全局变量仍可用；env/input/output 状态也被重建 | 2026-03-27 |
+| 83 | **$app 先尝试 BundleID 再尝试 Name** | `ax.ApplicationFromBundleID` 优先，失败后 fallback 到 `ax.ApplicationFromName`；兼容两种命名方式 | 2026-03-27 |
+| 84 | **parseModifier 支持别名** | cmd/command、alt/option、ctrl/control 均可识别；case-insensitive；未知修饰符静默忽略（返回 0） | 2026-03-27 |
 
 ## 2. 关键发现
 

@@ -31,8 +31,15 @@ func TestCompile_ValidSelector(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Compile(AXButton) error: %v", err)
 	}
-	if m == nil {
-		t.Fatal("Compile returned nil")
+	// Verify it actually matches AXButton elements.
+	btn := &mockElement{role: "AXButton"}
+	if !m.MatchSimple(btn) {
+		t.Fatal("Compile(AXButton) should match an AXButton element")
+	}
+	// And does NOT match a different role.
+	win := &mockElement{role: "AXWindow"}
+	if m.MatchSimple(win) {
+		t.Fatal("Compile(AXButton) should not match AXWindow")
 	}
 }
 
@@ -481,6 +488,26 @@ func TestMatcher_Group(t *testing.T) {
 	}
 	if len(g.Selectors) != 2 {
 		t.Fatalf("expected 2 selectors in group, got %d", len(g.Selectors))
+	}
+
+	// Verify the first selector matches AXButton.
+	btn := &mockElement{role: "AXButton"}
+	if !m.MatchSimple(btn) {
+		t.Fatal("group matcher should match AXButton (first alternative)")
+	}
+
+	// Verify AXSheet alone doesn't match (needs AXWindow parent context,
+	// but MatchSimple only checks simple/compound, not hierarchy).
+	// AXSheet should still match the second branch's last compound.
+	sheet := &mockElement{role: "AXSheet"}
+	if !m.MatchSimple(sheet) {
+		t.Fatal("group matcher should match AXSheet (second alternative's last compound)")
+	}
+
+	// Verify non-matching role.
+	text := &mockElement{role: "AXStaticText"}
+	if m.MatchSimple(text) {
+		t.Fatal("group matcher should not match AXStaticText")
 	}
 }
 

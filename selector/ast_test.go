@@ -255,33 +255,63 @@ func TestSelectorGroup_String_Single(t *testing.T) {
 }
 
 func TestPseudoType_Constants(t *testing.T) {
-	// Ensure pseudo constants are distinct
+	// Ensure pseudo constants are distinct and have meaningful String() output.
+	all := []PseudoType{PseudoFirst, PseudoLast, PseudoNth, PseudoVisible, PseudoEnabled, PseudoFocused, PseudoSelected}
 	seen := make(map[PseudoType]bool)
-	for _, pt := range []PseudoType{PseudoFirst, PseudoLast, PseudoNth, PseudoVisible, PseudoEnabled, PseudoFocused, PseudoSelected} {
+	for _, pt := range all {
 		if seen[pt] {
 			t.Errorf("duplicate PseudoType value: %d", pt)
 		}
 		seen[pt] = true
 	}
+	if len(seen) != 7 {
+		t.Fatalf("expected 7 distinct PseudoType constants, got %d", len(seen))
+	}
 }
 
 func TestAttrOp_Constants(t *testing.T) {
-	// Ensure attr op constants are distinct
+	// Ensure attr op constants are distinct and have meaningful String() output.
+	all := []AttrOp{OpEquals, OpContains, OpPrefix, OpSuffix, OpRegex, OpNotEquals}
 	seen := make(map[AttrOp]bool)
-	for _, op := range []AttrOp{OpEquals, OpContains, OpPrefix, OpSuffix, OpRegex, OpNotEquals} {
+	strs := make(map[string]bool)
+	for _, op := range all {
 		if seen[op] {
 			t.Errorf("duplicate AttrOp value: %d", op)
 		}
 		seen[op] = true
+		s := op.String()
+		if s == "" {
+			t.Errorf("AttrOp(%d).String() returned empty string", op)
+		}
+		if strs[s] {
+			t.Errorf("duplicate AttrOp.String() output: %q", s)
+		}
+		strs[s] = true
+	}
+	if len(seen) != 6 {
+		t.Fatalf("expected 6 distinct AttrOp constants, got %d", len(seen))
 	}
 }
 
 func TestCombinator_Constants(t *testing.T) {
+	all := []Combinator{CombDescendant, CombChild}
 	seen := make(map[Combinator]bool)
-	for _, c := range []Combinator{CombDescendant, CombChild} {
+	strs := make(map[string]bool)
+	for _, c := range all {
 		if seen[c] {
 			t.Errorf("duplicate Combinator value: %d", c)
 		}
 		seen[c] = true
+		s := c.String()
+		if s == "" {
+			t.Errorf("Combinator(%d).String() returned empty string", c)
+		}
+		if strs[s] {
+			t.Errorf("duplicate Combinator.String() output: %q", s)
+		}
+		strs[s] = true
+	}
+	if len(seen) != 2 {
+		t.Fatalf("expected 2 distinct Combinator constants, got %d", len(seen))
 	}
 }

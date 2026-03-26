@@ -2,8 +2,10 @@ package js
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -12,10 +14,14 @@ import (
 // New + basic Execute
 // ---------------------------------------------------------------------------
 
-func TestNew_ReturnsNonNil(t *testing.T) {
+func TestNew_CanExecuteJS(t *testing.T) {
 	rt := New()
-	if rt == nil {
-		t.Fatal("New() returned nil")
+	val, err := rt.Execute("2 + 2")
+	if err != nil {
+		t.Fatalf("New() runtime cannot execute JS: %v", err)
+	}
+	if val.ToInteger() != 4 {
+		t.Fatalf("expected 4, got %v", val.Export())
 	}
 }
 
@@ -91,6 +97,16 @@ func TestExecute_ArrayResult(t *testing.T) {
 	}
 	if len(arr) != 3 {
 		t.Fatalf("expected length 3, got %d", len(arr))
+	}
+	// Verify actual contents.
+	for i, want := range []int64{1, 2, 3} {
+		got, ok := arr[i].(int64)
+		if !ok {
+			t.Fatalf("arr[%d]: expected int64, got %T", i, arr[i])
+		}
+		if got != want {
+			t.Fatalf("arr[%d] = %d, want %d", i, got, want)
+		}
 	}
 }
 
@@ -219,25 +235,41 @@ func TestWithOnLog_ReceivesLogs(t *testing.T) {
 	rt := New(WithOnLog(func(level, msg string) {
 		logs = append(logs, level+":"+msg)
 	}))
-	// console is not injected in Task 14 scaffold — but OnLog should be stored.
-	// We verify it's stored by checking the option was accepted (no panic/error).
-	if rt == nil {
-		t.Fatal("New with OnLog returned nil")
+	// Actually trigger the callback via $log (injected global).
+	_, err := rt.Execute(`$log("hello"); $log("world")`)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
 	}
-	// Note: actual console.log injection is Task 17. Here we just verify option storage.
+	if len(logs) != 2 {
+		t.Fatalf("expected 2 log entries, got %d: %v", len(logs), logs)
+	}
+	if logs[0] != "log:hello" {
+		t.Fatalf("expected 'log:hello', got %q", logs[0])
+	}
+	if logs[1] != "log:world" {
+		t.Fatalf("expected 'log:world', got %q", logs[1])
+	}
 }
 
 // ---------------------------------------------------------------------------
 // WithOnError callback
 // ---------------------------------------------------------------------------
 
-func TestWithOnError_Stored(t *testing.T) {
+func TestWithOnError_CallbackStored(t *testing.T) {
 	var errs []error
 	rt := New(WithOnError(func(err error) {
 		errs = append(errs, err)
 	}))
-	if rt == nil {
-		t.Fatal("New with OnError returned nil")
+	// Verify the callback is stored by checking the config field directly.
+	// OnError is stored for future use (e.g., unhandled promise rejections).
+	// We verify it was actually stored by calling it through the config.
+	if rt.conf.onError == nil {
+		t.Fatal("WithOnError: callback not stored in config")
+	}
+	// Invoke it to verify it works.
+	rt.conf.onError(fmt.Errorf("test error"))
+	if len(errs) != 1 || errs[0].Error() != "test error" {
+		t.Fatalf("expected callback to receive 'test error', got %v", errs)
 	}
 }
 
@@ -245,14 +277,33 @@ func TestWithOnError_Stored(t *testing.T) {
 // Multiple options
 // ---------------------------------------------------------------------------
 
-func TestNew_MultipleOptions(t *testing.T) {
+func TestNew_MultipleOptions_AllApplied(t *testing.T) {
+	var logs []string
+	var errs []error
 	rt := New(
 		WithTimeout(5*time.Second),
-		WithOnLog(func(level, msg string) {}),
-		WithOnError(func(err error) {}),
+		WithOnLog(func(level, msg string) {
+			logs = append(logs, level+":"+msg)
+		}),
+		WithOnError(func(err error) {
+			errs = append(errs, err)
+		}),
 	)
-	if rt == nil {
-		t.Fatal("New with multiple options returned nil")
+	// Verify timeout is set.
+	if rt.conf.timeout != 5*time.Second {
+		t.Fatalf("expected timeout 5s, got %v", rt.conf.timeout)
+	}
+	// Verify onLog works.
+	_, err := rt.Execute(`$log("multi-opt")`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(logs) != 1 || logs[0] != "log:multi-opt" {
+		t.Fatalf("expected onLog to capture 'log:multi-opt', got %v", logs)
+	}
+	// Verify onError is stored.
+	if rt.conf.onError == nil {
+		t.Fatal("expected onError to be set")
 	}
 }
 
@@ -283,10 +334,14 @@ func TestReset_ClearsState(t *testing.T) {
 // SetApp (basic — just verify it doesn't panic)
 // ---------------------------------------------------------------------------
 
-func TestSetApp_NilApp(t *testing.T) {
+func TestSetApp_NilApp_AxStillFails(t *testing.T) {
 	rt := New()
-	// Setting nil app should not panic.
 	rt.SetApp(nil)
+	// With nil app, $ax should error since it requires an app.
+	_, err := rt.Execute(`$ax("AXButton")`)
+	if err == nil {
+		t.Fatal("expected error from $ax with nil app, got nil")
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -299,8 +354,10 @@ func TestExecute_EmptyScript(t *testing.T) {
 	if err != nil {
 		t.Fatalf("empty script should not error: %v", err)
 	}
-	// Empty script evaluates to undefined
-	_ = val
+	// Empty script evaluates to undefined (nil export).
+	if val.Export() != nil {
+		t.Fatalf("expected nil (undefined) from empty script, got %v", val.Export())
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -368,19 +425,20 @@ func TestExecute_ScriptError_Type(t *testing.T) {
 	if !errors.As(err, &se) {
 		t.Fatalf("expected *ScriptError, got %T: %v", err, err)
 	}
-	if se.Message == "" {
-		t.Fatal("ScriptError.Message should not be empty")
+	// Verify the message contains the thrown text.
+	if !strings.Contains(se.Message, "test error") {
+		t.Fatalf("ScriptError.Message should contain 'test error', got %q", se.Message)
 	}
-
-	// Verify Error() string output.
-	errStr := se.Error()
-	if errStr == "" {
-		t.Fatal("ScriptError.Error() should not be empty")
+	// Filename should be empty for inline Execute.
+	if se.Filename != "" {
+		t.Fatalf("expected empty Filename for inline Execute, got %q", se.Filename)
 	}
-
-	// Verify Unwrap() returns the original goja error.
-	unwrapped := se.Unwrap()
-	if unwrapped == nil {
+	// Error() should equal Message for inline scripts (no filename prefix).
+	if se.Error() != se.Message {
+		t.Fatalf("expected Error()=%q to equal Message=%q", se.Error(), se.Message)
+	}
+	// Unwrap() should return the original goja error.
+	if se.Unwrap() == nil {
 		t.Fatal("ScriptError.Unwrap() should not be nil")
 	}
 }
@@ -399,21 +457,20 @@ func TestExecuteFile_ScriptError_HasFilename(t *testing.T) {
 	}
 
 	var se *ScriptError
-	if errors.As(err, &se) {
-		// ScriptError from file should have filename info
-		if se.Filename == "" {
-			t.Fatal("ScriptError.Filename should contain the file path")
-		}
-		// Error() should include filename.
-		errStr := se.Error()
-		if errStr == "" {
-			t.Fatal("ScriptError.Error() should not be empty for file error")
-		}
-		// The filename should appear in the error string.
-		if !errors.As(err, &se) || se.Filename == "" {
-			t.Fatal("filename should be in ScriptError")
-		}
-	} else {
-		t.Fatal("expected *ScriptError from ExecuteFile")
+	if !errors.As(err, &se) {
+		t.Fatalf("expected *ScriptError, got %T: %v", err, err)
+	}
+	// Verify filename matches the actual path.
+	if se.Filename != path {
+		t.Fatalf("expected Filename=%q, got %q", path, se.Filename)
+	}
+	// Verify message contains the thrown text.
+	if !strings.Contains(se.Message, "file error") {
+		t.Fatalf("ScriptError.Message should contain 'file error', got %q", se.Message)
+	}
+	// Error() should include the filename prefix.
+	expectedPrefix := path + ": "
+	if !strings.HasPrefix(se.Error(), expectedPrefix) {
+		t.Fatalf("expected Error() to start with %q, got %q", expectedPrefix, se.Error())
 	}
 }

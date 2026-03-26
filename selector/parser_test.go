@@ -158,6 +158,18 @@ func TestParse_GroupThree(t *testing.T) {
 	if len(g.Selectors) != 3 {
 		t.Fatalf("expected 3 selectors, got %d", len(g.Selectors))
 	}
+	// Verify each selector's head has the correct role.
+	wantRoles := []string{"AXButton", "AXMenuItem", "AXStaticText"}
+	for i, cs := range g.Selectors {
+		got := cs.Head.Role
+		if got != wantRoles[i] {
+			t.Fatalf("selector[%d]: expected role %q, got %q", i, wantRoles[i], got)
+		}
+		// Each should be a simple selector (no steps).
+		if len(cs.Steps) != 0 {
+			t.Fatalf("selector[%d]: expected 0 steps, got %d", i, len(cs.Steps))
+		}
+	}
 }
 
 func TestParse_Pseudos(t *testing.T) {

@@ -1057,7 +1057,7 @@ git commit -m "feat(axquery): add goja JS runtime scaffold"
 
 ---
 
-### Task 15: JS 全局函数注入 ($ax, $app, $delay, $log)
+### Task 15: JS 全局函数注入 ($ax, $app, $delay, $log) ✅
 
 **Files:**
 - Create: `js/globals.go`

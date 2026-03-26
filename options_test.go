@@ -84,10 +84,23 @@ func TestApplyOptions_Empty(t *testing.T) {
 }
 
 func TestSearchStrategy_Constants(t *testing.T) {
-	if StrategyBFS != 0 {
-		t.Fatal("StrategyBFS should be 0")
+	// Verify strategies are distinct.
+	if StrategyBFS == StrategyDFS {
+		t.Fatal("StrategyBFS and StrategyDFS must be distinct values")
 	}
-	if StrategyDFS != 1 {
-		t.Fatal("StrategyDFS should be 1")
+	// Verify default is BFS.
+	opts := defaultQueryOptions()
+	if opts.Strategy != StrategyBFS {
+		t.Fatal("default strategy should be StrategyBFS")
+	}
+	// Verify WithStrategy actually switches to DFS.
+	WithStrategy(StrategyDFS)(&opts)
+	if opts.Strategy != StrategyDFS {
+		t.Fatal("WithStrategy(StrategyDFS) did not set strategy to DFS")
+	}
+	// And back to BFS.
+	WithStrategy(StrategyBFS)(&opts)
+	if opts.Strategy != StrategyBFS {
+		t.Fatal("WithStrategy(StrategyBFS) did not set strategy back to BFS")
 	}
 }
