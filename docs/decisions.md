@@ -1,6 +1,6 @@
 # 决策记录
 
-> 最后更新：2026-03-26（Task 10 完成后）
+> 最后更新：2026-03-26（Task 11 完成后）
 
 ## 1. 已确认决策
 
@@ -60,6 +60,13 @@
 | 52 | **Each/EachWithBreak 返回原 Selection** | 迭代方法返回调用者本身（不创建新 Selection），支持链式调用 `sel.Each(...).Find(...)` | 2026-03-26 |
 | 53 | **EachIter 使用 iter.Seq2** | Go 1.23+ 的 range-over-func 特性，`EachIter()` 返回 `iter.Seq2[int, *Selection]`，支持 `for i, sel := range sel.EachIter()` 和 `break` | 2026-03-26 |
 | 54 | **空/错误 Selection 迭代为 no-op** | 与属性方法一致：empty/error Selection 上调用 Each/Map 等不执行回调，直接返回零值 | 2026-03-26 |
+| 55 | **actionable 内部接口隔离交互动作** | action 方法通过 `actionable` 接口（`press()`/`setValue()`/`performAction()`）操作节点；mock 节点直接实现，真实节点通过 `elementActionAdapter` 委托 `*ax.Element` | 2026-03-26 |
+| 56 | **交互动作操作首元素** | 与属性方法一致：Click/SetValue/Focus/TypeText/Press/Perform 仅操作 Selection 的第一个元素 | 2026-03-26 |
+| 57 | **交互动作返回原 Selection 支持链式** | action 方法返回 `*Selection` 自身（不创建新 Selection），出错时设置 `s.err`，后续链式调用自动短路 | 2026-03-26 |
+| 58 | **Focus() 通过 AXRaise 实现** | ax 包无直接 SetFocused API，Focus() 委托 `performAction("AXRaise")` 作为最接近的通用聚焦行为 | 2026-03-26 |
+| 59 | **TypeText/Press 通过包级函数变量注入** | `typeTextFn`（默认 `ax.TypeText`）和 `keyPressFn`（默认 `ax.KeyPress`）允许纯单元测试替换 CGo 键盘函数 | 2026-03-26 |
+| 60 | **Press 修饰符使用字符串映射** | `Press(key, "command", "shift")` 接受人类可读的修饰符字符串，内部通过 `modifierMap` 转换为 `ax.Modifier`；支持别名（cmd/command、alt/option、ctrl/control） | 2026-03-26 |
+| 61 | **空 Selection 的 action 报 ErrNotActionable** | 在空/无 actionable 节点的 Selection 上调用交互方法返回 `NotActionableError`，而非 `NotFoundError`（更精确地描述操作失败原因） | 2026-03-26 |
 
 ## 2. 关键发现
 
@@ -118,7 +125,7 @@ rootResolver（根节点获取接口）
 
 **成果：** query 引擎的 BFS/DFS 逻辑、elementAdapter 的属性映射、queryWithResolver 的根解析都可以纯 mock 单测。CGo 依赖仅存在于两个薄封装 (`appRootResolver.resolveRoot` 和 `Query`)，它们只在集成测试中覆盖。
 
-总覆盖率 96.1%，满足 95%+ 要求。
+总覆盖率 95.5%，满足 95%+ 要求。
 
 ## 3. 旧系统审计摘要
 
@@ -183,7 +190,8 @@ rootResolver（根节点获取接口）
 - [x] axquery 包：Selection 过滤方法（Filter/Not/Has/Is/Contains）— Task 8, 95.1% coverage
 - [x] axquery 包：属性读取（Attr/Text/Val/Role/Title/IsVisible等）— Task 9, 95.4% coverage
 - [x] axquery 包：迭代回调（Each/EachWithBreak/Map/EachIter）— Task 10, 95.6% coverage
-- [ ] axquery 包：交互动作（Click/SetValue/TypeText）— Task 11, next
+- [x] axquery 包：交互动作（Click/SetValue/TypeText/Press/Focus/Perform）— Task 11, 94.9% coverage
+- [ ] axquery 包：等待方法（WaitUntil/WaitGone）— Task 12, next
 - [ ] axquery 包：goja JS 运行时 + $ax() 全局 API
 
 ### Phase 2: 应用层（app 基础）

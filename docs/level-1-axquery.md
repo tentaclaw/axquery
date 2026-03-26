@@ -1,6 +1,6 @@
 # Level 1: axquery 包设计
 
-> 状态：实现中 — Phase 1 完成（选择器），Phase 2 进行中（Selection 核心 + 遍历 + 过滤 + 属性读取 + 迭代方法已完成）
+> 状态：实现中 — Phase 1 完成（选择器），Phase 2 进行中（Selection 核心 + 遍历 + 过滤 + 属性读取 + 迭代 + 交互动作已完成）
 > 包路径：`github.com/tentaclaw/axquery`
 > 语言：Go
 > 参考：[goquery](https://github.com/PuerkitoBio/goquery)（API 风格）、[cascadia](https://github.com/andybalholm/cascadia)（选择器模型）
@@ -280,16 +280,26 @@ func (s *Selection) EachIter() iter.Seq2[int, *Selection]              // Go 1.2
 > **内部架构：** 迭代方法通过 `s.getNodes()` 获取节点列表，为每个节点创建单元素 Selection（`newSelectionFromNodes`），
 > 保留节点身份以支持后续 traversal 链式调用。EachIter() 利用 Go 1.23+ 的 `iter.Seq2` 支持 `for i, sel := range` 和 `break`。
 
-#### 4.8.3 交互动作
+#### 4.8.3 交互动作（已实现 ✅ — Task 11）
+
+所有交互方法操作 Selection 的**第一个元素**，返回 `*Selection` 自身支持链式调用。
+出错时设置 `s.err`，后续链式调用自动短路。空/错误 Selection 返回 `ErrNotActionable`。
 
 ```go
-func (s *Selection) Click() *Selection
-func (s *Selection) SetValue(v string) *Selection
-func (s *Selection) TypeText(text string) *Selection
-func (s *Selection) Press(key string, modifiers ...string) *Selection
-func (s *Selection) Focus() *Selection
-func (s *Selection) Perform(action string) *Selection
+func (s *Selection) Click() *Selection                          // AXPress 第一个元素
+func (s *Selection) SetValue(v string) *Selection               // 设置 AXValue
+func (s *Selection) TypeText(text string) *Selection            // Focus + ax.TypeText
+func (s *Selection) Press(key string, modifiers ...string) *Selection  // Focus + ax.KeyPress
+func (s *Selection) Focus() *Selection                          // performAction("AXRaise")
+func (s *Selection) Perform(action string) *Selection           // 任意 AX action
 ```
+
+> **内部架构：** 通过 `actionable` 接口（`press()`/`setValue()`/`performAction()`）隔离测试。
+> mock 节点直接实现 actionable；真实 `*ax.Element` 通过 `elementActionAdapter` 委托。
+> `typeTextFn`/`keyPressFn` 包级变量允许纯单元测试替换 CGo 键盘函数。
+> `Press` 接受人类可读修饰符字符串（"command"/"cmd"、"shift"、"option"/"alt"、"control"/"ctrl"），
+> 内部通过 `modifierMap` 转换为 `ax.Modifier`。
+> `Focus()` 通过 `performAction("AXRaise")` 实现（ax 包无直接 SetFocused API）。
 
 #### 4.8.4 等待
 
@@ -500,7 +510,7 @@ axquery/
 ├── traversal.go          // Find/Children/Parent/Closest 等       ✅
 ├── filter.go             // Filter/Not/Has/Is/Contains            ✅
 ├── property.go           // Attr/Text/Val/Role/Title 等           ✅
-├── action.go             // Click/SetValue/TypeText/Press          计划
+├── action.go             // Click/SetValue/TypeText/Press/Focus/Perform  ✅
 ├── iteration.go          // Each/EachWithBreak/Map/EachIter          ✅
 ├── waiting.go            // WaitUntil/WaitGone                     计划
 ├── scroll.go             // ScrollIntoView/ScrollDown/ScrollUp     计划
@@ -514,7 +524,7 @@ axquery/
 │   ├── globals.go
 │   ├── bridge.go
 │   └── executor.go
-├── *_test.go             // 各文件对应测试                         ✅ (~95.6% root / 97.1% selector)
+├── *_test.go             // 各文件对应测试                         ✅ (~94.9% root / 97.1% selector)
 └── docs/
     ├── architecture.md
     ├── decisions.md
