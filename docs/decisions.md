@@ -1,6 +1,6 @@
 # 决策记录
 
-> 最后更新：2026-03-26（Task 9 完成后）
+> 最后更新：2026-03-26（Task 10 完成后）
 
 ## 1. 已确认决策
 
@@ -56,6 +56,10 @@
 | 48 | **Text() 递归收集 title** | Text() 通过深度优先递归收集元素及后代的 `title` 属性，以空格连接；AX 场景下 title 是最通用的文本标识 | 2026-03-26 |
 | 49 | **Attr("role") 特殊处理** | Attr(name) 当 name="role" 时走 GetRole() 而非 GetAttr，保持与 Role() 方法的一致性 | 2026-03-26 |
 | 50 | **Bounds() 延迟到后续 Task** | Task 9 计划中的 Bounds() 暂未实现，因当前 mock 架构不自然支持几何信息；将在 action/scroll 相关 Task 中按需添加 | 2026-03-26 |
+| 51 | **迭代回调传入单元素 Selection** | Each/EachWithBreak/Map 的回调 fn(i, sel) 中的 sel 是包含单个元素的 Selection，与 FilterFunction 和 goquery 保持一致 | 2026-03-26 |
+| 52 | **Each/EachWithBreak 返回原 Selection** | 迭代方法返回调用者本身（不创建新 Selection），支持链式调用 `sel.Each(...).Find(...)` | 2026-03-26 |
+| 53 | **EachIter 使用 iter.Seq2** | Go 1.23+ 的 range-over-func 特性，`EachIter()` 返回 `iter.Seq2[int, *Selection]`，支持 `for i, sel := range sel.EachIter()` 和 `break` | 2026-03-26 |
+| 54 | **空/错误 Selection 迭代为 no-op** | 与属性方法一致：empty/error Selection 上调用 Each/Map 等不执行回调，直接返回零值 | 2026-03-26 |
 
 ## 2. 关键发现
 
@@ -114,7 +118,7 @@ rootResolver（根节点获取接口）
 
 **成果：** query 引擎的 BFS/DFS 逻辑、elementAdapter 的属性映射、queryWithResolver 的根解析都可以纯 mock 单测。CGo 依赖仅存在于两个薄封装 (`appRootResolver.resolveRoot` 和 `Query`)，它们只在集成测试中覆盖。
 
-总覆盖率 96.0%，满足 95%+ 要求。
+总覆盖率 96.1%，满足 95%+ 要求。
 
 ## 3. 旧系统审计摘要
 
@@ -178,8 +182,8 @@ rootResolver（根节点获取接口）
 - [x] axquery 包：Selection 遍历方法（Find/Children/Parent）— Task 7, 95.1% coverage
 - [x] axquery 包：Selection 过滤方法（Filter/Not/Has/Is/Contains）— Task 8, 95.1% coverage
 - [x] axquery 包：属性读取（Attr/Text/Val/Role/Title/IsVisible等）— Task 9, 95.4% coverage
-- [ ] axquery 包：遍历回调（Each/Map）— Task 10, next
-- [ ] axquery 包：属性读取 + 交互动作
+- [x] axquery 包：迭代回调（Each/EachWithBreak/Map/EachIter）— Task 10, 95.6% coverage
+- [ ] axquery 包：交互动作（Click/SetValue/TypeText）— Task 11, next
 - [ ] axquery 包：goja JS 运行时 + $ax() 全局 API
 
 ### Phase 2: 应用层（app 基础）

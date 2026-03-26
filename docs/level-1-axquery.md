@@ -1,6 +1,6 @@
 # Level 1: axquery 包设计
 
-> 状态：实现中 — Phase 1 完成（选择器），Phase 2 进行中（Selection 核心 + 遍历 + 过滤 + 属性读取方法已完成）
+> 状态：实现中 — Phase 1 完成（选择器），Phase 2 进行中（Selection 核心 + 遍历 + 过滤 + 属性读取 + 迭代方法已完成）
 > 包路径：`github.com/tentaclaw/axquery`
 > 语言：Go
 > 参考：[goquery](https://github.com/PuerkitoBio/goquery)（API 风格）、[cascadia](https://github.com/andybalholm/cascadia)（选择器模型）
@@ -265,14 +265,20 @@ func (s *Selection) IsSelected() bool
 > Text() 通过 `collectText()` 深度优先递归收集 title。
 > Bounds() 延迟到后续 Task（action/scroll 需要时实现）。
 
-#### 4.8.2 遍历回调（计划中 — Task 10）
+#### 4.8.2 遍历回调（已实现 ✅ — Task 10）
+
+所有迭代方法的回调接收**单元素 Selection**，与 FilterFunction 和 goquery 保持一致。
+空/错误 Selection 上调用迭代方法为 no-op。
 
 ```go
-func (s *Selection) Each(fn func(int, *Selection)) *Selection
-func (s *Selection) EachWithBreak(fn func(int, *Selection) bool) *Selection
-func (s *Selection) Map(fn func(int, *Selection) string) []string
-func (s *Selection) EachIter() iter.Seq2[int, *Selection]
+func (s *Selection) Each(fn func(int, *Selection)) *Selection          // 返回原 Selection，支持链式
+func (s *Selection) EachWithBreak(fn func(int, *Selection) bool) *Selection  // fn 返回 false 停止
+func (s *Selection) Map(fn func(int, *Selection) string) []string      // 收集回调返回的字符串
+func (s *Selection) EachIter() iter.Seq2[int, *Selection]              // Go 1.23+ range-over-func
 ```
+
+> **内部架构：** 迭代方法通过 `s.getNodes()` 获取节点列表，为每个节点创建单元素 Selection（`newSelectionFromNodes`），
+> 保留节点身份以支持后续 traversal 链式调用。EachIter() 利用 Go 1.23+ 的 `iter.Seq2` 支持 `for i, sel := range` 和 `break`。
 
 #### 4.8.3 交互动作
 
@@ -495,7 +501,7 @@ axquery/
 ├── filter.go             // Filter/Not/Has/Is/Contains            ✅
 ├── property.go           // Attr/Text/Val/Role/Title 等           ✅
 ├── action.go             // Click/SetValue/TypeText/Press          计划
-├── iteration.go          // Each/EachWithBreak/Map                 计划
+├── iteration.go          // Each/EachWithBreak/Map/EachIter          ✅
 ├── waiting.go            // WaitUntil/WaitGone                     计划
 ├── scroll.go             // ScrollIntoView/ScrollDown/ScrollUp     计划
 ├── selector/             // 选择器子包                             ✅
@@ -508,7 +514,7 @@ axquery/
 │   ├── globals.go
 │   ├── bridge.go
 │   └── executor.go
-├── *_test.go             // 各文件对应测试                         ✅ (~95.4% root / 97.1% selector)
+├── *_test.go             // 各文件对应测试                         ✅ (~95.6% root / 97.1% selector)
 └── docs/
     ├── architecture.md
     ├── decisions.md
