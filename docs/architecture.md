@@ -1,7 +1,8 @@
 # Tentaclaw 架构设计
 
-> 状态：设计阶段（尚未实现）
+> 状态：实现中 — axquery Phase 1-2 进行中（选择器 + Selection 核心已完成）
 > 日期：2026-03-26
+> 最后更新：2026-03-26
 
 ## 1. 项目概述
 
@@ -162,7 +163,38 @@ JS 运行时使用 **goja**（纯 Go 实现的 ES5.1+ 引擎）。
 | axblocky | 积木定义单元 + 代码生成快照 + 往返测试 | `vitest` | 任意 |
 | app | API 测试 + MCP tool 测试 + E2E | `go test` + Playwright/Maestro | macOS runner |
 
-## 8. 相关文档
+### axquery 测试策略（已验证可行）
+
+axquery 采用**接口抽象**实现纯单元测试，避免对真实 macOS AX 的依赖：
+
+- **selector 包**：纯逻辑，100% 可单测（解析器、AST、编译器、匹配器）
+- **query 引擎**：通过 `queryNode` 接口 + mock 节点实现纯单元测试
+- **elementAdapter**：通过 `axElementReader` 接口注入 mock，测试 AX 方法映射
+- **CGo 桥接层**（`appRootResolver`、`Query`）：薄封装，仅在集成测试中覆盖
+
+当前覆盖率：**selector 97.1% / root 93.9% / 总计 95.9%**
+
+## 8. 实现进度
+
+| 层 | 包名 | 状态 | 说明 |
+|----|------|------|------|
+| Level 0 | `ax` | ✅ 可用 | Phase 1-6 完成，axquery 已依赖 |
+| Level 1 | `axquery` | 🚧 实现中 | Phase 1 完成（选择器），Phase 2 进行中（Selection 核心） |
+| Level 2 | `axblocky` | ⬜ 未开始 | 等待 axquery JS 运行时完成 |
+| Level 3 | `app` | ⬜ 未开始 | 等待 axquery + axblocky |
+
+### axquery 已完成的模块
+
+| Task | 模块 | 文件 | 覆盖率 |
+|------|------|------|--------|
+| 1 | Go module 初始化 | `go.mod`, `axquery.go` | — |
+| 2 | 选择器 AST | `selector/ast.go` | 100% |
+| 3 | 选择器解析器 | `selector/parser.go` | 96.9% |
+| 4 | 选择器匹配/编译 | `selector/matcher.go`, `selector/compiler.go` | 97.1% |
+| 5 | Selection + Errors + Options | `selection.go`, `errors.go`, `options.go` | 100% |
+| 6 | Query 引擎 (BFS/DFS) | `query.go` | 93.9% |
+
+## 9. 相关文档
 
 - [Level 0: ax 包设计](./level-0-ax.md)
 - [Level 1: axquery 包设计](./level-1-axquery.md)

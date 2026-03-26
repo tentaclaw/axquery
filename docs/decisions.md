@@ -1,6 +1,6 @@
 # 决策记录
 
-> 最后更新：2026-03-26
+> 最后更新：2026-03-26（Task 6 完成后）
 
 ## 1. 已确认决策
 
@@ -27,6 +27,20 @@
 | 19 | **HTTP 默认仅 127.0.0.1** | 安全第一——这个 server 可以控制电脑上任意应用 | 2026-03-26 |
 | 20 | **远程 transport：Streamable HTTP** | MCP 最新标准；单端口双向通信 | 2026-03-26 |
 | 21 | **远程访问需 API key + TLS** | 强制认证和加密 | 2026-03-26 |
+| 22 | **Matchable 接口精简化** | selector.Matchable 仅含 `GetRole()`、`GetAttr(name)`、`IsEnabled/Visible/Focused/Selected()` — 去掉了设计稿中的 `GetTitle()`/`GetDescription()`/`GetValue()`，统一走 `GetAttr` | 2026-03-26 |
+| 23 | **MatchSimple 仅匹配叶节点** | `MatchSimple` 只匹配复合选择器的最后一个简单选择器；组合器（后代/子元素）延迟到 query/selection 层处理 | 2026-03-26 |
+| 24 | **集合伪选择器延迟处理** | `:first`、`:last`、`:nth(n)` 被解析但在 matcher 层忽略，由 Selection 层实现 | 2026-03-26 |
+| 25 | **selector.Compile 不因无效正则失败** | 无效正则模式不导致 Compile 错误，运行时 simply never match | 2026-03-26 |
+| 26 | **SearchStrategy 枚举 = StrategyBFS / StrategyDFS** | 实现中去掉了设计稿的 `Adaptive` 策略，仅保留 BFS（默认）和 DFS | 2026-03-26 |
+| 27 | **QueryOptions.Timeout 默认为 0（无超时）** | 设计稿预设 5s 超时，实现中改为默认无超时，由调用方按需设置 | 2026-03-26 |
+| 28 | **Selection 不持有 app/root 引用** | 与设计稿不同：Selection 仅持有 `[]*ax.Element` + `error` + `selector`，不保存 app/root — 更简洁、更纯粹 | 2026-03-26 |
+| 29 | **queryNode 接口实现可测试遍历** | 引入 `queryNode` 接口（extends `Matchable` + `queryChildren()` + `element()`），使 BFS/DFS 逻辑可用纯 mock 节点单测 | 2026-03-26 |
+| 30 | **rootResolver 接口隔离 AX 桥接** | `rootResolver` 抽象根节点获取，`appRootResolver` 是唯一的 CGo 实现；`queryWithResolver` 是可测试入口 | 2026-03-26 |
+| 31 | **axElementReader 接口隔离元素读取** | `elementAdapter` 使用 `axElementReader` 接口而非直接依赖 `*ax.Element`，允许 mock 测试属性映射逻辑 | 2026-03-26 |
+| 32 | **IsVisible = !IsHidden** | ax 包的语义是 `IsHidden()`，axquery 将其反转为 `IsVisible()` 以符合选择器 `:visible` 的直觉 | 2026-03-26 |
+| 33 | **子节点加载错误静默跳过** | 搜索时遇到无法读取子节点的元素（AX 错误很常见），跳过该子树继续搜索，而非中止整个查询 | 2026-03-26 |
+| 34 | **elementAdapter.GetAttr 特殊映射** | `title`/`description`/`role`/`subrole`/`roleDescription` 走专用方法；其余走通用 `Attribute(name)` | 2026-03-26 |
+| 35 | **错误类型用 sentinel + wrapper 双层设计** | sentinel (`ErrNotFound` 等) 配合 wrapper 结构体 (`NotFoundError` 等)；支持 `errors.Is` 和 `errors.As` | 2026-03-26 |
 
 ## 2. 关键发现
 
@@ -63,6 +77,29 @@ goquery (14.9k stars) 为 HTML DOM 提供了成熟的 jQuery-like Go API。axque
 ### 2.4 MCP tools 精简
 
 因为有了 `execute_js` tool（执行任意 JS 代码），AI agent 可以在一个 tool 调用中完成以前需要 5+ 个 tool 调用的操作。MCP tools 从 20+ 个精简到 ~7 个。
+
+### 2.5 axquery 可测试性架构
+
+在实现 Task 6（Query 引擎）时发现，`*ax.Element` 的所有方法返回 `(value, error)` 且涉及 CGo 调用，无法在纯单元测试中使用。解决方案是引入三层内部接口：
+
+```
+queryNode（遍历接口）
+├── queryChildren() → []queryNode
+├── element() → *ax.Element
+└── embeds selector.Matchable
+
+axElementReader（属性读取接口）
+├── Role/Title/Description/... → (string, error)
+├── IsEnabled/IsHidden/... → (bool, error)
+└── Attribute(name) → (*ax.Value, error)
+
+rootResolver（根节点获取接口）
+└── resolveRoot() → (queryNode, error)
+```
+
+**成果：** query 引擎的 BFS/DFS 逻辑、elementAdapter 的属性映射、queryWithResolver 的根解析都可以纯 mock 单测。CGo 依赖仅存在于两个薄封装 (`appRootResolver.resolveRoot` 和 `Query`)，它们只在集成测试中覆盖。
+
+总覆盖率 95.9%，满足 95%+ 要求。
 
 ## 3. 旧系统审计摘要
 
@@ -120,9 +157,10 @@ goquery (14.9k stars) 为 HTML DOM 提供了成熟的 jQuery-like Go API。axque
 - [ ] ax 包：Element/Application/Value 类型
 - [ ] ax 包：属性读取 + 子元素访问 + 动作
 - [ ] ax 包：ChildCount + ChildrenRange（性能关键）
-- [ ] axquery 包：选择器解析器
-- [ ] axquery 包：Selection 类型 + 基本遍历（Find/Children/Parent）
-- [ ] axquery 包：BFS 搜索引擎
+- [x] axquery 包：选择器解析器（Task 2-4, 97.1% coverage）
+- [x] axquery 包：Selection 类型 + 基本缩减（Task 5, 100% coverage）
+- [x] axquery 包：BFS/DFS 搜索引擎（Task 6, 95.9% total coverage）
+- [ ] axquery 包：Selection 遍历方法（Find/Children/Parent）— Task 7, next
 - [ ] axquery 包：属性读取 + 交互动作
 - [ ] axquery 包：goja JS 运行时 + $ax() 全局 API
 

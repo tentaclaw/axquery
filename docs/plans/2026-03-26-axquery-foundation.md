@@ -14,7 +14,7 @@
 
 ## Phase 1: 项目脚手架 + 选择器解析器
 
-### Task 1: 初始化 Go module
+### Task 1: 初始化 Go module ✅ `5823185`
 
 **Files:**
 - Create: `go.mod`
@@ -68,7 +68,7 @@ git commit -m "feat(axquery): init go module"
 
 ---
 
-### Task 2: 选择器 AST 类型
+### Task 2: 选择器 AST 类型 ✅ `38251a7`
 
 **Files:**
 - Create: `selector/ast.go`
@@ -310,7 +310,7 @@ git commit -m "feat(axquery): add selector AST types"
 
 ---
 
-### Task 3: 选择器解析器
+### Task 3: 选择器解析器 ✅ `a4580e5`
 
 **Files:**
 - Create: `selector/parser.go`
@@ -501,7 +501,7 @@ git commit -m "feat(axquery): implement selector parser with all operators"
 
 ---
 
-### Task 4: 选择器 Matcher 编译
+### Task 4: 选择器 Matcher 编译 ✅ `79090fa`
 
 **Files:**
 - Create: `selector/matcher.go`
@@ -753,7 +753,7 @@ git commit -m "feat(axquery): implement selector compiler and matcher"
 
 ## Phase 2: Selection 核心
 
-### Task 5: Selection 类型 + 构造 + 基础方法
+### Task 5: Selection 类型 + 构造 + 基础方法 ✅ `5810571`
 
 **Files:**
 - Create: `selection.go`
@@ -793,7 +793,7 @@ git commit -m "feat(axquery): add Selection type, options, and error types"
 
 ---
 
-### Task 6: Query 入口 + 搜索引擎 (BFS)
+### Task 6: Query 入口 + 搜索引擎 (BFS) ✅ `3882738`
 
 **Files:**
 - Create: `query.go`
@@ -1267,13 +1267,13 @@ git commit -m "docs(axquery): add README with examples"
 
 ## 实现顺序总结
 
-| Phase | Tasks | 预估时间 |
-|-------|-------|---------|
-| 1: 脚手架+选择器 | Task 1-4 | 2-3 hours |
-| 2: Selection 核心 | Task 5-13 | 4-6 hours |
-| 3: JS 运行时 | Task 14-18 | 3-4 hours |
-| 4: 集成测试+文档 | Task 19-20 | 1-2 hours |
-| **总计** | **20 Tasks** | **~10-15 hours** |
+| Phase | Tasks | 预估时间 | 状态 |
+|-------|-------|---------|------|
+| 1: 脚手架+选择器 | Task 1-4 | 2-3 hours | ✅ 完成 |
+| 2: Selection 核心 | Task 5-13 | 4-6 hours | 🚧 Task 5-6 完成，Task 7 next |
+| 3: JS 运行时 | Task 14-18 | 3-4 hours | ⬜ 未开始 |
+| 4: 集成测试+文档 | Task 19-20 | 1-2 hours | ⬜ 未开始 |
+| **总计** | **20 Tasks** | **~10-15 hours** | **6/20 完成** |
 
 ## 依赖关系
 
