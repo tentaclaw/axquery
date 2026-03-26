@@ -1,6 +1,6 @@
 # Level 1: axquery 包设计
 
-> 状态：实现中 — Phase 1 完成（选择器），Phase 2 进行中（Selection 核心 + 遍历方法已完成）
+> 状态：实现中 — Phase 1 完成（选择器），Phase 2 进行中（Selection 核心 + 遍历 + 过滤方法已完成）
 > 包路径：`github.com/tentaclaw/axquery`
 > 语言：Go
 > 参考：[goquery](https://github.com/PuerkitoBio/goquery)（API 风格）、[cascadia](https://github.com/andybalholm/cascadia)（选择器模型）
@@ -224,21 +224,30 @@ func (s *Selection) Prev() *Selection
 > Selection 内部持有 `nodes []queryNode`，使得 First/Last/Eq/Slice 产生的子 Selection 仍可继续 traversal 链式调用。
 > 所有遍历结果通过指针去重避免重复，AX 错误静默跳过。
 
-### 4.7 过滤/判断/属性/动作/等待（计划中 — Task 8-13）
-
-设计见下方 §4.7.x（暂未实现，API 签名可能在实现时微调）。
-
-#### 4.7.1 过滤
+### 4.7 过滤/判断（已实现 ✅ — Task 8）
 
 ```go
 func (s *Selection) Filter(selector string) *Selection
+func (s *Selection) FilterMatcher(m selector.Matcher) *Selection
 func (s *Selection) FilterFunction(fn func(int, *Selection) bool) *Selection
 func (s *Selection) Not(selector string) *Selection
+func (s *Selection) NotMatcher(m selector.Matcher) *Selection
 func (s *Selection) Has(selector string) *Selection
 func (s *Selection) Is(selector string) bool
+func (s *Selection) Contains(text string) *Selection
 ```
 
-#### 4.7.2 属性读取
+> **实现细节：** Filter/Not 使用 `selector.Compile` 编译后对每个 node 调用 `MatchSimple` 过滤。
+> FilterMatcher/NotMatcher 接受预编译的 Matcher，避免重复编译。
+> Has 检查后代（不含自身），使用递归 BFS 搜索子树。
+> Is 返回 bool，invalid selector 或空 Selection 返回 false。
+> Contains 按 title 属性子串匹配。
+
+### 4.8 属性读取/动作/等待（计划中 — Task 9-13）
+
+设计见下方 §4.8.x（暂未实现，API 签名可能在实现时微调）。
+
+#### 4.8.1 属性读取
 
 ```go
 func (s *Selection) Attr(name string) (string, bool)
@@ -252,7 +261,7 @@ func (s *Selection) IsVisible() bool
 func (s *Selection) IsEnabled() bool
 ```
 
-#### 4.7.3 遍历回调
+#### 4.8.2 遍历回调
 
 ```go
 func (s *Selection) Each(fn func(int, *Selection)) *Selection
@@ -261,7 +270,7 @@ func (s *Selection) Map(fn func(int, *Selection) string) []string
 func (s *Selection) EachIter() iter.Seq2[int, *Selection]
 ```
 
-#### 4.7.4 交互动作
+#### 4.8.3 交互动作
 
 ```go
 func (s *Selection) Click() *Selection
@@ -272,7 +281,7 @@ func (s *Selection) Focus() *Selection
 func (s *Selection) Perform(action string) *Selection
 ```
 
-#### 4.7.5 等待
+#### 4.8.4 等待
 
 ```go
 func (s *Selection) WaitUntil(fn func(*Selection) bool, timeout time.Duration) *Selection
@@ -479,7 +488,7 @@ axquery/
 ├── options.go            // QueryOptions + functional options     ✅
 ├── errors.go             // 错误类型 (sentinel + wrapper)         ✅
 ├── traversal.go          // Find/Children/Parent/Closest 等       ✅
-├── filter.go             // Filter/Not/Has/First/Last/Eq          计划
+├── filter.go             // Filter/Not/Has/Is/Contains            ✅
 ├── property.go           // Attr/Text/Val/Role/Title 等           计划
 ├── action.go             // Click/SetValue/TypeText/Press          计划
 ├── iteration.go          // Each/EachWithBreak/Map                 计划
@@ -495,7 +504,7 @@ axquery/
 │   ├── globals.go
 │   ├── bridge.go
 │   └── executor.go
-├── *_test.go             // 各文件对应测试                         ✅ (~95.9% coverage)
+├── *_test.go             // 各文件对应测试                         ✅ (~95.1% root / 97.1% selector)
 └── docs/
     ├── architecture.md
     ├── decisions.md

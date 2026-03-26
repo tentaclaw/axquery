@@ -865,22 +865,23 @@ git commit -m "feat(axquery): add traversal methods (Find/Children/Parent/Closes
 
 ---
 
-### Task 8: Selection 过滤方法 (Filter, Not, Has)
+### Task 8: Selection 过滤方法 (Filter, Not, Has) ✅
 
 **Files:**
 - Create: `filter.go`
 - Create: `filter_test.go`
 
 实现:
-- `Filter(selector)` / `FilterFunction(fn)`
-- `Not(selector)`
-- `Has(selector)` — 保留包含匹配子元素的
+- `Filter(selector)` / `FilterFunction(fn)` / `FilterMatcher(m)`
+- `Not(selector)` / `NotMatcher(m)`
+- `Has(selector)` — 保留包含匹配后代元素的
 - `Is(selector)` — bool 判断
+- `Contains(text)` — 按 title 子串过滤
 
 **Commit:**
 ```
 git add -A
-git commit -m "feat(axquery): add filter methods (Filter/Not/Has/Is)"
+git commit -m "feat(axquery): add filter methods (Filter/Not/Has/Is/Contains)"
 ```
 
 ---
@@ -1270,10 +1271,10 @@ git commit -m "docs(axquery): add README with examples"
 | Phase | Tasks | 预估时间 | 状态 |
 |-------|-------|---------|------|
 | 1: 脚手架+选择器 | Task 1-4 | 2-3 hours | ✅ 完成 |
-| 2: Selection 核心 | Task 5-13 | 4-6 hours | 🚧 Task 5-7 完成，Task 8 next |
+| 2: Selection 核心 | Task 5-13 | 4-6 hours | 🚧 Task 5-8 完成，Task 9 next |
 | 3: JS 运行时 | Task 14-18 | 3-4 hours | ⬜ 未开始 |
 | 4: 集成测试+文档 | Task 19-20 | 1-2 hours | ⬜ 未开始 |
-| **总计** | **20 Tasks** | **~10-15 hours** | **7/20 完成** |
+| **总计** | **20 Tasks** | **~10-15 hours** | **8/20 完成** |
 
 ## 依赖关系
 

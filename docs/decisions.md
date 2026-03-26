@@ -1,6 +1,6 @@
 # 决策记录
 
-> 最后更新：2026-03-26（Task 7 完成后）
+> 最后更新：2026-03-26（Task 8 完成后）
 
 ## 1. 已确认决策
 
@@ -46,6 +46,11 @@
 | 38 | **遍历子节点/父节点错误静默跳过** | 与决策 #33 一致：traversal 中遇到 AX 错误时跳过该元素继续处理，而非中止整个操作 | 2026-03-26 |
 | 39 | **遍历结果按指针去重** | 当多个 Selection 元素的子树可能产生重叠结果时（如 Find/Siblings），用 `map[queryNode]bool` 去重 | 2026-03-26 |
 | 40 | **Siblings 不包含自身** | 与 goquery/jQuery 语义一致：Siblings() 返回同级兄弟元素但排除 Selection 中的当前元素 | 2026-03-26 |
+| 41 | **Filter/Not 使用 MatchSimple 逐节点过滤** | 在当前 Selection 的 nodes 上逐个调用 `MatchSimple`，编译一次选择器复用；FilterMatcher/NotMatcher 提供预编译变体 | 2026-03-26 |
+| 42 | **Has 检查后代不含自身** | 与 goquery/jQuery 语义一致：Has(sel) 保留"包含匹配后代"的元素，不检查元素自身 | 2026-03-26 |
+| 43 | **Is 返回 bool 而非 Selection** | Is(sel) 是判断方法，不走链式调用；invalid selector 或空 Selection 返回 false 而非 error | 2026-03-26 |
+| 44 | **Contains 基于 title 子串匹配** | Contains(text) 按 GetAttr("title") 做子串匹配，是 AX 场景下最常用的文本过滤方式；与 jQuery 的 `:contains` 语义类似 | 2026-03-26 |
+| 45 | **FilterFunction 传入单元素 Selection** | 回调 fn(i, sel) 中的 sel 是包含单个元素的 Selection，保持与 Each/goquery 的一致性 | 2026-03-26 |
 
 ## 2. 关键发现
 
@@ -166,7 +171,8 @@ rootResolver（根节点获取接口）
 - [x] axquery 包：Selection 类型 + 基本缩减（Task 5, 100% coverage）
 - [x] axquery 包：BFS/DFS 搜索引擎（Task 6, 95.9% total coverage）
 - [x] axquery 包：Selection 遍历方法（Find/Children/Parent）— Task 7, 95.1% coverage
-- [ ] axquery 包：Selection 过滤方法（Filter/Not/Has）— Task 8, next
+- [x] axquery 包：Selection 过滤方法（Filter/Not/Has/Is/Contains）— Task 8, 95.1% coverage
+- [ ] axquery 包：属性读取 — Task 9, next
 - [ ] axquery 包：属性读取 + 交互动作
 - [ ] axquery 包：goja JS 运行时 + $ax() 全局 API
 
