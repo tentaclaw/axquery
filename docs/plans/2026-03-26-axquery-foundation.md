@@ -974,7 +974,7 @@ git commit -m "feat(axquery): add wait methods (WaitUntil/WaitGone/WaitVisible)"
 
 ---
 
-### Task 13: Selection 滚动方法
+### Task 13: Selection 滚动方法 ✅
 
 **Files:**
 - Create: `scroll.go`
@@ -1271,10 +1271,10 @@ git commit -m "docs(axquery): add README with examples"
 | Phase | Tasks | 预估时间 | 状态 |
 |-------|-------|---------|------|
 | 1: 脚手架+选择器 | Task 1-4 | 2-3 hours | ✅ 完成 |
-| 2: Selection 核心 | Task 5-13 | 4-6 hours | 🚧 Task 5-12 完成，Task 13 next |
+| 2: Selection 核心 | Task 5-13 | 4-6 hours | ✅ 完成 |
 | 3: JS 运行时 | Task 14-18 | 3-4 hours | ⬜ 未开始 |
 | 4: 集成测试+文档 | Task 19-20 | 1-2 hours | ⬜ 未开始 |
-| **总计** | **20 Tasks** | **~10-15 hours** | **12/20 完成** |
+| **总计** | **20 Tasks** | **~10-15 hours** | **13/20 完成** |
 
 ## 依赖关系
 

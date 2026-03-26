@@ -1,6 +1,6 @@
 # 决策记录
 
-> 最后更新：2026-03-26（Task 12 完成后）
+> 最后更新：2026-03-26（Task 13 完成后）
 
 ## 1. 已确认决策
 
@@ -73,6 +73,11 @@
 | 65 | **WaitGone 检查 Role() == "" 判断元素消失** | 真实 AX 元素被销毁后 `Role()` 返回错误 → `GetRole()` 返回 ""。WaitGone 以此为信号而非 re-query，因为 Selection 不持有 root/resolver 引用（决策 #28） | 2026-03-26 |
 | 66 | **错误 Selection 上 WaitGone 立即返回** | 已 errored 的 Selection 语义上等同于"已消失"，WaitGone 直接返回不轮询 | 2026-03-26 |
 | 67 | **WaitVisible/WaitEnabled 依赖 AX 属性的实时性** | `IsHidden()`/`IsEnabled()` 每次调用都通过 AX API 实时查询（非缓存），因此轮询中无需 re-query Selection | 2026-03-26 |
+| 68 | **滚动方法复用 actionable 接口** | ScrollDown/ScrollUp/ScrollIntoView 与 action 方法共用 `firstActionable()` + `actionable` 接口，保持一致的首元素操作和错误处理模式 | 2026-03-26 |
+| 69 | **ScrollDown/ScrollUp 按页滚动** | `ScrollDown(n)` 执行 `AXScrollDownByPage` n 次；`ScrollUp(n)` 执行 `AXScrollUpByPage` n 次。按页滚动是 AX 最可靠的滚动原语 | 2026-03-26 |
+| 70 | **ScrollIntoView 使用 AXScrollToVisible** | `ScrollIntoView()` 委托 `performAction("AXScrollToVisible")`，是 AX 原生的"确保元素在可视区域"操作 | 2026-03-26 |
+| 71 | **n <= 0 时滚动为 no-op 成功** | `ScrollDown(0)` / `ScrollUp(-1)` 不执行任何操作，直接返回原 Selection。防御性设计，避免意外的反向滚动 | 2026-03-26 |
+| 72 | **滚动失败快速中止** | 多次滚动（n>1）时，若中途某次 `performAction` 失败，立即设置 `s.err` 并返回，不继续后续滚动 | 2026-03-26 |
 
 ## 2. 关键发现
 
@@ -198,7 +203,7 @@ rootResolver（根节点获取接口）
 - [x] axquery 包：迭代回调（Each/EachWithBreak/Map/EachIter）— Task 10, 95.6% coverage
 - [x] axquery 包：交互动作（Click/SetValue/TypeText/Press/Focus/Perform）— Task 11, 94.9% coverage
 - [x] axquery 包：等待方法（WaitUntil/WaitGone/WaitVisible/WaitEnabled）— Task 12, 95.5% coverage
-- [ ] axquery 包：滚动方法（ScrollIntoView/ScrollDown/ScrollUp）— Task 13, next
+- [x] axquery 包：滚动方法（ScrollIntoView/ScrollDown/ScrollUp）— Task 13, 95.1% coverage
 - [ ] axquery 包：goja JS 运行时 + $ax() 全局 API
 
 ### Phase 2: 应用层（app 基础）

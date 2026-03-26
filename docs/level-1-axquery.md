@@ -1,6 +1,6 @@
 # Level 1: axquery 包设计
 
-> 状态：实现中 — Phase 1 完成（选择器），Phase 2 进行中（Selection 核心 + 遍历 + 过滤 + 属性读取 + 迭代 + 交互动作 + 等待方法已完成）
+> 状态：实现中 — Phase 1 完成（选择器），Phase 2 进行中（Selection 核心 + 遍历 + 过滤 + 属性读取 + 迭代 + 交互动作 + 等待方法 + 滚动方法已完成）
 > 包路径：`github.com/tentaclaw/axquery`
 > 语言：Go
 > 参考：[goquery](https://github.com/PuerkitoBio/goquery)（API 风格）、[cascadia](https://github.com/andybalholm/cascadia)（选择器模型）
@@ -321,6 +321,22 @@ func (s *Selection) WaitEnabled(timeout time.Duration) *Selection
 > `WaitVisible`/`WaitEnabled` 依赖 AX 属性的实时性（每次调用都通过 AX API 查询，非缓存）。
 > 错误 Selection 上的 wait 方法立即返回（不轮询）。
 
+#### 4.8.5 滚动方法（已实现 ✅ — Task 13）
+
+所有滚动方法操作 Selection 的**第一个元素**，返回 `*Selection` 自身支持链式调用。
+出错时设置 `s.err`，后续链式调用自动短路。
+
+```go
+func (s *Selection) ScrollIntoView() *Selection              // AXScrollToVisible
+func (s *Selection) ScrollDown(n int) *Selection             // AXScrollDownByPage × n
+func (s *Selection) ScrollUp(n int) *Selection               // AXScrollUpByPage × n
+```
+
+> **内部架构：** 复用 `actionable` 接口的 `performAction()` 方法和 `firstActionable()` 守卫。
+> ScrollDown/ScrollUp 按页滚动，n 次循环调用 `performAction`；n <= 0 时为 no-op 成功。
+> 多次滚动失败快速中止（fail-fast）：中途失败立即返回，不继续后续滚动。
+> ScrollIntoView 委托 `performAction("AXScrollToVisible")`，是 AX 原生的可视区域定位。
+
 ## 5. Query 引擎架构（已实现 ✅）
 
 ### 5.1 内部架构
@@ -524,7 +540,7 @@ axquery/
 ├── action.go             // Click/SetValue/TypeText/Press/Focus/Perform  ✅
 ├── iteration.go          // Each/EachWithBreak/Map/EachIter          ✅
 ├── waiting.go            // WaitUntil/WaitGone/WaitVisible/WaitEnabled  ✅
-├── scroll.go             // ScrollIntoView/ScrollDown/ScrollUp     计划
+├── scroll.go             // ScrollIntoView/ScrollDown/ScrollUp     ✅
 ├── selector/             // 选择器子包                             ✅
 │   ├── ast.go            // 选择器 AST 类型                       ✅
 │   ├── parser.go         // 递归下降解析器                         ✅
@@ -535,7 +551,7 @@ axquery/
 │   ├── globals.go
 │   ├── bridge.go
 │   └── executor.go
-├── *_test.go             // 各文件对应测试                         ✅ (~94.9% root / 97.1% selector / 95.5% total)
+├── *_test.go             // 各文件对应测试                         ✅ (~95.1% total / 97.1% selector)
 └── docs/
     ├── architecture.md
     ├── decisions.md
