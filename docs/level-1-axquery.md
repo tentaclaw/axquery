@@ -1,6 +1,6 @@
 # Level 1: axquery 包设计
 
-> 状态：实现中 — Phase 1 完成（选择器），Phase 2 进行中（Selection 核心 + 遍历 + 过滤 + 属性读取 + 迭代 + 交互动作 + 等待方法 + 滚动方法已完成）
+> 状态：实现中 — Phase 1-2 完成（选择器 + Selection 全部），Phase 3 进行中（JS 运行时脚手架已完成）
 > 包路径：`github.com/tentaclaw/axquery`
 > 语言：Go
 > 参考：[goquery](https://github.com/PuerkitoBio/goquery)（API 风格）、[cascadia](https://github.com/andybalholm/cascadia)（选择器模型）
@@ -546,11 +546,11 @@ axquery/
 │   ├── parser.go         // 递归下降解析器                         ✅
 │   ├── compiler.go       // AST → CompiledSelector 编译            ✅
 │   └── matcher.go        // Matchable + Matcher 接口               ✅
-├── js/                   // JS 运行时子包                          计划
-│   ├── runtime.go
-│   ├── globals.go
-│   ├── bridge.go
-│   └── executor.go
+├── js/                   // JS 运行时子包                          🚧
+│   ├── runtime.go        // Runtime 类型 + Execute/ExecuteFile    ✅
+│   ├── globals.go        // 计划
+│   ├── bridge.go         // 计划
+│   └── executor.go       // 计划
 ├── *_test.go             // 各文件对应测试                         ✅ (~95.1% total / 97.1% selector)
 └── docs/
     ├── architecture.md

@@ -1,6 +1,6 @@
 # 决策记录
 
-> 最后更新：2026-03-26（Task 13 完成后）
+> 最后更新：2026-03-26（Task 14 完成后）
 
 ## 1. 已确认决策
 
@@ -78,6 +78,11 @@
 | 70 | **ScrollIntoView 使用 AXScrollToVisible** | `ScrollIntoView()` 委托 `performAction("AXScrollToVisible")`，是 AX 原生的"确保元素在可视区域"操作 | 2026-03-26 |
 | 71 | **n <= 0 时滚动为 no-op 成功** | `ScrollDown(0)` / `ScrollUp(-1)` 不执行任何操作，直接返回原 Selection。防御性设计，避免意外的反向滚动 | 2026-03-26 |
 | 72 | **滚动失败快速中止** | 多次滚动（n>1）时，若中途某次 `performAction` 失败，立即设置 `s.err` 并返回，不继续后续滚动 | 2026-03-26 |
+| 73 | **JS Runtime 使用 functional options** | `New(WithTimeout(...), WithOnLog(...))` 模式，与 axquery 的 `QueryOption` 保持一致；options 存储在不可导出的 `runtimeConfig` 中 | 2026-03-26 |
+| 74 | **Runtime.Reset() 重建 VM 保留配置** | `Reset()` 创建新的 `goja.Runtime`，但保留 timeout/callback 等配置；用于超时恢复或测试隔离 | 2026-03-26 |
+| 75 | **ScriptError 统一包装 JS 错误** | 所有 `Execute`/`ExecuteFile` 的 JS 错误（语法错误、throw、中断）统一包装为 `*ScriptError`，携带 Message + Filename + Wrapped；支持 `errors.As` 和 `errors.Unwrap` | 2026-03-26 |
+| 76 | **超时通过 time.AfterFunc + vm.Interrupt 实现** | 不使用 context（goja 不支持 context 取消），改用 `time.AfterFunc` 调度 `vm.Interrupt("execution timeout")`，execute 结束后 `timer.Stop()` + `vm.ClearInterrupt()` 清理 | 2026-03-26 |
+| 77 | **ExecuteFile 复用 execute 内核** | `ExecuteFile(path)` 只做 `os.ReadFile` + 委托 `execute(script, filename)`，避免代码重复；filename 传入用于 ScriptError 的源定位 | 2026-03-26 |
 
 ## 2. 关键发现
 
@@ -204,7 +209,8 @@ rootResolver（根节点获取接口）
 - [x] axquery 包：交互动作（Click/SetValue/TypeText/Press/Focus/Perform）— Task 11, 94.9% coverage
 - [x] axquery 包：等待方法（WaitUntil/WaitGone/WaitVisible/WaitEnabled）— Task 12, 95.5% coverage
 - [x] axquery 包：滚动方法（ScrollIntoView/ScrollDown/ScrollUp）— Task 13, 95.1% coverage
-- [ ] axquery 包：goja JS 运行时 + $ax() 全局 API
+- [x] axquery 包：goja JS 运行时脚手架（Runtime/Execute/ExecuteFile）— Task 14, 95.8% coverage
+- [ ] axquery 包：JS 全局函数注入（$ax/$app/$delay/$log）— Task 15, next
 
 ### Phase 2: 应用层（app 基础）
 - [ ] app：Wails v3 项目初始化
