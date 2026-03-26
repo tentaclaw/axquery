@@ -1,0 +1,27 @@
+mode: set
+github.com/tentaclaw/axquery/selector/ast.go:31.34,32.36 1 1
+github.com/tentaclaw/axquery/selector/ast.go:32.36,34.3 1 1
+github.com/tentaclaw/axquery/selector/ast.go:35.2,35.47 1 1
+github.com/tentaclaw/axquery/selector/ast.go:46.37,47.11 1 1
+github.com/tentaclaw/axquery/selector/ast.go:48.22,49.13 1 1
+github.com/tentaclaw/axquery/selector/ast.go:50.17,51.15 1 1
+github.com/tentaclaw/axquery/selector/ast.go:52.10,53.49 1 1
+github.com/tentaclaw/axquery/selector/ast.go:83.39,85.2 1 1
+github.com/tentaclaw/axquery/selector/ast.go:94.42,97.28 3 1
+github.com/tentaclaw/axquery/selector/ast.go:97.28,99.3 1 1
+github.com/tentaclaw/axquery/selector/ast.go:100.2,100.30 1 1
+github.com/tentaclaw/axquery/selector/ast.go:100.30,101.17 1 1
+github.com/tentaclaw/axquery/selector/ast.go:102.20,103.27 1 1
+github.com/tentaclaw/axquery/selector/ast.go:104.19,105.26 1 1
+github.com/tentaclaw/axquery/selector/ast.go:106.18,107.36 1 1
+github.com/tentaclaw/axquery/selector/ast.go:108.22,109.29 1 1
+github.com/tentaclaw/axquery/selector/ast.go:110.22,111.29 1 1
+github.com/tentaclaw/axquery/selector/ast.go:112.22,113.29 1 1
+github.com/tentaclaw/axquery/selector/ast.go:114.23,115.30 1 1
+github.com/tentaclaw/axquery/selector/ast.go:118.2,118.19 1 1
+github.com/tentaclaw/axquery/selector/ast.go:133.45,136.32 3 1
+github.com/tentaclaw/axquery/selector/ast.go:136.32,139.3 2 1
+github.com/tentaclaw/axquery/selector/ast.go:140.2,140.19 1 1
+github.com/tentaclaw/axquery/selector/ast.go:148.42,150.33 2 1
+github.com/tentaclaw/axquery/selector/ast.go:150.33,152.3 1 1
+github.com/tentaclaw/axquery/selector/ast.go:153.2,153.34 1 1
