@@ -1,0 +1,171 @@
+# Tentaclaw 架构设计
+
+> 状态：设计阶段（尚未实现）
+> 日期：2026-03-26
+
+## 1. 项目概述
+
+Tentaclaw 是一个 macOS 辅助功能（Accessibility）自动化平台，允许用户和 AI agent 通过脚本控制任意 macOS 应用的 UI。
+
+本文档描述 Tentaclaw 从 Rust 全面重写为 Go 的架构设计。
+
+## 2. 四层架构
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Level 3: app (Tentaclaw 主应用)                              │
+│  Wails v3 + Svelte | MCP Server | CLI | Menubar             │
+├─────────────────────────────────────────────────────────────┤
+│  Level 2: axblocky (npm/TS 包)                               │
+│  Blockly 积木定义 | JS 代码生成 | JS→Blockly 还原             │
+├─────────────────────────────────────────────────────────────┤
+│  Level 1: axquery (Go 库)                                    │
+│  jQuery-style Selection API | CSS-like 选择器 | JS 运行时     │
+├─────────────────────────────────────────────────────────────┤
+│  Level 0: ax (Go 库)                                         │
+│  macOS AXUIElement 原语 | CGo + ObjC bridge                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 各层职责
+
+| 层 | 包名 | 语言 | 职责 |
+|----|------|------|------|
+| Level 0 | `github.com/tentaclaw/ax` | Go + CGo + ObjC | macOS AXUIElement 底层原语封装 |
+| Level 1 | `github.com/tentaclaw/axquery` | Go | jQuery-style AX 查询 + 选择器 + goja JS 运行时 |
+| Level 2 | `github.com/tentaclaw/axblocky` | TypeScript (npm) | Blockly 积木 → JS 代码生成 / JS → Blockly 还原 |
+| Level 3 | `github.com/tentaclaw/app` | Go + Svelte | 主应用：Wails v3 桌面壳 + MCP Server + CLI |
+
+### 依赖关系
+
+```
+app ──→ axquery ──→ ax
+ │
+ └──→ axblocky (前端侧通过 npm 引用)
+
+axblocky 独立，只生成/解析 JS 字符串，不依赖 Go 包
+```
+
+## 3. 仓库结构
+
+多仓库（multi-repo），每个包独立仓库：
+
+```
+github.com/tentaclaw/
+├── ax/           # Level 0: macOS AX 原语
+├── axquery/      # Level 1: jQuery-like 查询 + JS 运行时
+├── axblocky/     # Level 2: Blockly 积木 (npm)
+├── app/          # Level 3: 主应用 (Wails v3)
+├── landing/      # 官网落地页
+└── docs/         # 跨仓库设计文档（本目录）
+```
+
+本地开发目录：`/Users/Toby/GoglandProjects/tentaclaw/`
+
+## 4. 进程模型
+
+### 运行时架构
+
+```
+┌───────────────────────────────────────────────────┐
+│  Tentaclaw.app (Wails v3)                          │
+│  ┌───────────────────────────────────────────────┐ │
+│  │  MCP Server (核心引擎 Engine)                   │ │
+│  │  axquery → ax → macOS AXUIElement API         │ │
+│  │                                                │ │
+│  │  Transport:                                    │ │
+│  │  ├── Unix Socket  ~/.tentaclaw/tentaclaw.sock │ │
+│  │  ├── stdio        (本地 AI launcher 拉起)      │ │
+│  │  └── Streamable HTTP  127.0.0.1:19840         │ │
+│  └───────────────────────────────────────────────┘ │
+│  ┌───────────────────────────────────────────────┐ │
+│  │  Wails UI (Svelte 前端)                        │ │
+│  │  通过 Wails Binding 调用 Engine                │ │
+│  └───────────────────────────────────────────────┘ │
+│  ┌───────────────────────────────────────────────┐ │
+│  │  Menubar Tray (macOS 系统托盘)                  │ │
+│  └───────────────────────────────────────────────┘ │
+└───────────────────────────────────────────────────┘
+          ↑ Unix Socket          ↑ stdio         ↑ Streamable HTTP
+          │                      │               │
+     ┌────┴─────┐         ┌─────┴─────┐   ┌─────┴──────┐
+     │tentaclaw │         │ Claude    │   │ 远程 AI    │
+     │  CLI     │         │ Desktop   │   │ Agent      │
+     └──────────┘         └───────────┘   └────────────┘
+```
+
+### 运行模式
+
+| 模式 | 启动方式 | UI | 说明 |
+|------|----------|-----|------|
+| 桌面模式（默认） | 双击 Tentaclaw.app | Wails 窗口 + menubar 托盘 | 用户日常使用 |
+| MCP 模式 | 被 AI launcher 拉起 | headless | 仅 MCP Server |
+| CLI | `tentaclaw run script.js` | 无 | MCP client，连接已运行的 app |
+
+### CLI 与 App 的关系
+
+CLI 是纯 MCP client，**不包含业务逻辑**。类似 Docker CLI 与 Docker daemon 的关系：
+
+1. 用户启动 Tentaclaw.app → MCP server 开始监听 Unix socket
+2. CLI 连接 `~/.tentaclaw/tentaclaw.sock` → 发送 MCP tool 调用
+3. App 未启动时 CLI 报错："请先启动 Tentaclaw.app"
+
+### 多 Transport 通信
+
+| Transport | 监听地址 | 客户端 | 说明 |
+|-----------|----------|--------|------|
+| Unix Socket | `~/.tentaclaw/tentaclaw.sock` | CLI | 本地 |
+| stdio | 被外部进程启动时激活 | Claude Desktop 等 | 本地 |
+| Streamable HTTP | 默认 `127.0.0.1:19840` | 本地/远程 agent | 远程需配置 |
+
+**安全策略：**
+- HTTP 默认仅监听 `127.0.0.1`（仅本地）
+- 开放远程需用户显式配置绑定 `0.0.0.0`
+- 远程访问强制要求 API key 认证 + TLS 加密
+- 网络穿透（Tailscale/WireGuard/端口映射）由用户自行处理
+
+## 5. 脚本格式
+
+所有自动化脚本统一使用 **`.js`（JavaScript）** 格式：
+
+- 用户手写 → `.js`
+- Blockly 生成 → `.js`
+- AI agent 生成 → `.js`
+- 三种创作方式产出相同格式，可互相编辑
+
+JS 运行时使用 **goja**（纯 Go 实现的 ES5.1+ 引擎）。
+
+## 6. 核心创新
+
+### 对比旧系统
+
+| 维度 | 旧系统 (Rust) | 新系统 (Go) |
+|------|---------------|-------------|
+| 语言 | Rust | Go + CGo + ObjC |
+| 脚本格式 | JSON step 数组 | `.js` |
+| 选择器 | 4 个扁平 AND 字段 | CSS-like 结构化选择器 |
+| 查询模型 | 每次从窗口根 DFS 全树 | 作用域搜索 + BFS + 分页 |
+| 元素操作 | 独立 MCP tool 调用 | `$ax(...).click()` 链式调用 |
+| 控制流 | 自定义 If/ForEach step | 原生 JS if/for/while |
+| 桌面框架 | Tauri (旧) | Wails v3 |
+| 前端框架 | Svelte | Svelte（保持） |
+| GUI 策略 | 浏览器打开 web UI | Wails 原生窗口 + menubar |
+| MCP tools | 20+ 个独立 tool | ~7 个（JS 表达大部分操作） |
+| CLI | 直接调用引擎 | MCP client，连接 app |
+
+## 7. 测试策略
+
+| 层 | 测试类型 | 工具 | CI 要求 |
+|----|---------|------|---------|
+| ax | 单元 + 集成（需真实 macOS AX） | `go test` | macOS runner |
+| axquery | 选择器解析单元 + mock AX 集成 + 真实 app E2E | `go test` | macOS runner |
+| axblocky | 积木定义单元 + 代码生成快照 + 往返测试 | `vitest` | 任意 |
+| app | API 测试 + MCP tool 测试 + E2E | `go test` + Playwright/Maestro | macOS runner |
+
+## 8. 相关文档
+
+- [Level 0: ax 包设计](./level-0-ax.md)
+- [Level 1: axquery 包设计](./level-1-axquery.md)
+- [Level 2: axblocky 包设计](./level-2-axblocky.md)
+- [Level 3: app 设计](./level-3-app.md)
+- [决策记录](./decisions.md)
