@@ -1,6 +1,6 @@
 # 决策记录
 
-> 最后更新：2026-03-27（Task 15 完成后）
+> 最后更新：2026-03-27（Task 16 完成后）
 
 ## 1. 已确认决策
 
@@ -90,6 +90,12 @@
 | 82 | **injectGlobals 在 New + Reset 中调用** | 确保 Reset 后全局变量仍可用；env/input/output 状态也被重建 | 2026-03-27 |
 | 83 | **$app 先尝试 BundleID 再尝试 Name** | `ax.ApplicationFromBundleID` 优先，失败后 fallback 到 `ax.ApplicationFromName`；兼容两种命名方式 | 2026-03-27 |
 | 84 | **parseModifier 支持别名** | cmd/command、alt/option、ctrl/control 均可识别；case-insensitive；未知修饰符静默忽略（返回 0） | 2026-03-27 |
+| 85 | **wrapSelection 全方法桥接** | `js/bridge.go` 中 `wrapSelection` 将 Go `*Selection` 的全部公开方法（count/find/filter/each/map/click/wait/scroll 等）桥接为 goja JS 对象方法；返回 Selection 的方法递归包装，支持完整链式调用 | 2026-03-27 |
+| 86 | **JS each 回调 break 检测安全** | `each` 回调返回值先检查 `!= goja.Undefined() && != goja.Null()`，再通过 `ExportType().Kind() == reflect.Bool` 判断是否显式 return false；避免 undefined 导致 nil pointer panic | 2026-03-27 |
+| 87 | **errNotAFunction panic 语义** | JS 中传非函数给 each/map/filterFunction/waitUntil 时，通过 `vm.NewGoError` 抛出 Go error（goja panic 语义），被 goja 捕获为 JS 异常 | 2026-03-27 |
+| 88 | **不桥接到 JS 的方法** | `Elements()`、`FilterMatcher()`、`NotMatcher()`、`EachIter()` 不暴露到 JS——前者返回 Go 指针数组无法安全导出，后三者是 Go 侧优化接口，JS 有等价替代 | 2026-03-27 |
+| 89 | **NewSelection/NewSelectionError 导出构造函数** | root 包导出 `NewSelection` 和 `NewSelectionError`，让 `js` 包测试可以不依赖 AX 权限直接构造 Selection 进行 bridge 测试 | 2026-03-27 |
+| 90 | **boolKind 缓存** | `var boolKind = reflect.Bool` 避免 each 热路径中重复分配 reflect.Kind 值 | 2026-03-27 |
 
 ## 2. 关键发现
 

@@ -17,6 +17,18 @@ type Selection struct {
 	selector string
 }
 
+// NewSelection creates a Selection holding the given elements.
+// It is exported for use by sub-packages (e.g., js bridge tests).
+func NewSelection(elems []*ax.Element, selector string) *Selection {
+	return newSelection(elems, selector)
+}
+
+// NewSelectionError creates a Selection carrying an error and no elements.
+// It is exported for use by sub-packages (e.g., js bridge tests).
+func NewSelectionError(err error, selector string) *Selection {
+	return newSelectionError(err, selector)
+}
+
 // newSelection creates a Selection holding the given elements.
 func newSelection(elems []*ax.Element, selector string) *Selection {
 	if elems == nil {

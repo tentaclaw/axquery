@@ -101,20 +101,7 @@ func (r *Runtime) jsAx(call goja.FunctionCall) goja.Value {
 	return r.wrapSelection(sel)
 }
 
-// wrapSelection wraps a Go *axquery.Selection as a JS object.
-// Minimal stub for Task 15; full bridge methods added in Task 16.
-func (r *Runtime) wrapSelection(sel *axquery.Selection) goja.Value {
-	obj := r.vm.NewObject()
-	obj.Set("count", func() int { return sel.Count() })
-	obj.Set("isEmpty", func() bool { return sel.IsEmpty() })
-	obj.Set("err", func() interface{} {
-		if err := sel.Err(); err != nil {
-			return err.Error()
-		}
-		return nil
-	})
-	return obj
-}
+// wrapSelection is defined in bridge.go (Task 16).
 
 // ---------------------------------------------------------------------------
 // $clipboard — {read(), write(text)}

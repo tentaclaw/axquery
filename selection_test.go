@@ -57,6 +57,32 @@ func TestNewSelectionError(t *testing.T) {
 	}
 }
 
+// --- Exported constructors (NewSelection / NewSelectionError) ---
+
+func TestExportedNewSelection(t *testing.T) {
+	s := NewSelection(nil, "AXWindow")
+	if s == nil {
+		t.Fatal("NewSelection returned nil")
+	}
+	if s.Count() != 0 {
+		t.Fatalf("expected 0, got %d", s.Count())
+	}
+	if s.Selector() != "AXWindow" {
+		t.Fatalf("expected AXWindow, got %s", s.Selector())
+	}
+}
+
+func TestExportedNewSelectionError(t *testing.T) {
+	err := errors.New("export err")
+	s := NewSelectionError(err, "AXMenuItem")
+	if s.Err() != err {
+		t.Fatalf("expected err, got %v", s.Err())
+	}
+	if s.Selector() != "AXMenuItem" {
+		t.Fatalf("expected AXMenuItem, got %s", s.Selector())
+	}
+}
+
 // --- Count ---
 
 func TestSelection_Count(t *testing.T) {
