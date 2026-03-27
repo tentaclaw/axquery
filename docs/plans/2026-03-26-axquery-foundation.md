@@ -1275,23 +1275,32 @@ git commit -m "test(axquery): add E2E integration tests with Mail.app + JS query
 
 ---
 
-### Task 20: README + 文档
+### Task 20: README + 文档 ✅
 
 **Files:**
 - Create: `README.md`
 
-包含:
-- 包用途和定位
-- 安装
-- Go API 示例
-- JS 脚本示例
-- 选择器语法参考
-- 与 goquery 的对比
+**实际内容（远超原始计划）：**
+- 包用途和定位 + 架构图
+- 安装 + 前置要求
+- Go API 示例（Query, 链式操作, 遍历, 选项）
+- JS 脚本示例（Runtime 创建, Execute, $output, Result）
+- 选择器语法完整参考（Role/属性/伪选择器/组合器/分组/复杂选择器）
+- Selection API 完整方法表（Query/Traversal/Filter/Property/Iteration/Action/Wait/Scroll）
+- JS 全局变量表（$ax/$app/$delay/$log/$clipboard/$keyboard/$env/$input/$output/console）
+- $ax.defaults 配置说明 + 内联覆盖
+- Executor 接口使用示例 + Result 访问器表
+- 错误处理（Go 侧 sentinel + 类型 / JS 侧结构化异常 + .err()）
+- 与 goquery 的详细对比表 + 关键差异说明
+- QueryOptions 表
+- 测试方法（单元/E2E/覆盖率）
+- 包结构树
+- License
 
 **Commit:**
 ```
 git add -A
-git commit -m "docs(axquery): add README with examples"
+git commit -m "docs(axquery): add comprehensive README with full API reference"
 ```
 
 ---
@@ -1303,8 +1312,8 @@ git commit -m "docs(axquery): add README with examples"
 | 1: 脚手架+选择器 | Task 1-4 | 2-3 hours | ✅ 完成 |
 | 2: Selection 核心 | Task 5-13 | 4-6 hours | ✅ 完成 |
 | 3: JS 运行时 | Task 14-18 | 3-4 hours | ✅ 完成 |
-| 4: 集成测试+文档 | Task 19-20 | 1-2 hours | 🚧 Task 19 完成 |
-| **总计** | **20 Tasks** | **~10-15 hours** | **19/20 完成** |
+| 4: 集成测试+文档 | Task 19-20 | 1-2 hours | ✅ 完成 |
+| **总计** | **20 Tasks** | **~10-15 hours** | **20/20 完成** |
 
 ## 依赖关系
 
