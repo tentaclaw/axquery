@@ -1,6 +1,6 @@
 # 决策记录
 
-> 最后更新：2026-03-27（Task 16 完成后）
+> 最后更新：2026-03-27（Task 17 完成后）
 
 ## 1. 已确认决策
 
@@ -96,6 +96,13 @@
 | 88 | **不桥接到 JS 的方法** | `Elements()`、`FilterMatcher()`、`NotMatcher()`、`EachIter()` 不暴露到 JS——前者返回 Go 指针数组无法安全导出，后三者是 Go 侧优化接口，JS 有等价替代 | 2026-03-27 |
 | 89 | **NewSelection/NewSelectionError 导出构造函数** | root 包导出 `NewSelection` 和 `NewSelectionError`，让 `js` 包测试可以不依赖 AX 权限直接构造 Selection 进行 bridge 测试 | 2026-03-27 |
 | 90 | **boolKind 缓存** | `var boolKind = reflect.Bool` 避免 each 热路径中重复分配 reflect.Kind 值 | 2026-03-27 |
+| 91 | **终端方法抛出，非终端方法传播** | 属性读取/actions/waits/scrolls 是终端方法，在 error selection 上抛出结构化 JS 异常；query/traversal/subset/filter/inspection/iteration 是非终端方法，保持链式传播 error selection | 2026-03-27 |
+| 92 | **结构化 JS 异常对象** | throw 的对象包含 `code`/`message` 必有字段 + `selector`/`count`/`action`/`timeout` 可选字段；code 枚举：NOT_FOUND/TIMEOUT/AMBIGUOUS/INVALID_SELECTOR/NOT_ACTIONABLE/ERROR | 2026-03-27 |
+| 93 | **errorToJSObject 集中映射** | `bridge.go` 中 `errorToJSObject(err)` 集中处理 Go error → JS object 映射，使用 `errors.As` 逐层匹配 axquery 错误类型 | 2026-03-27 |
+| 94 | **throwIfErr 守卫** | 终端 bridge 方法开头调用 `r.throwIfErr(sel)`，通过 `r.vm.NewGoError` 抛出结构化对象；统一守卫避免每个方法重复检查 | 2026-03-27 |
+| 95 | **`.err()` 返回结构化对象** | `.err()` 返回与 throw 相同 shape 的结构化对象（非字符串），无错误时返回 `null`；JS 侧可直接 `if (sel.err()) { ... sel.err().code ... }` | 2026-03-27 |
+| 96 | **`$ax.defaults` 可写配置对象** | `$ax.defaults = {timeout: 5000, pollInterval: 200}`，JS 侧可修改；通过 `injectAx()` 在 New/Reset 中注入；`$ax` 保持可调用同时挂载 `.defaults` 属性 | 2026-03-27 |
+| 97 | **console 已在 Task 15 实现** | console.log/warn/error 在 Task 15 的 globals 注入中已完成，复用 `emitLog` 路径；Task 17 不重复实现 | 2026-03-27 |
 
 ## 2. 关键发现
 
@@ -154,7 +161,7 @@ rootResolver（根节点获取接口）
 
 **成果：** query 引擎的 BFS/DFS 逻辑、elementAdapter 的属性映射、queryWithResolver 的根解析都可以纯 mock 单测。CGo 依赖仅存在于两个薄封装 (`appRootResolver.resolveRoot` 和 `Query`)，它们只在集成测试中覆盖。
 
-总覆盖率 95.5%，满足 95%+ 要求。
+总覆盖率 95.5%+，满足 95%+ 要求。
 
 ## 3. 旧系统审计摘要
 

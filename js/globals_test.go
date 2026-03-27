@@ -662,3 +662,90 @@ func TestDollarApp_InvalidApp_Error(t *testing.T) {
 		t.Fatal("expected error from $app with invalid bundle ID, got nil")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// $ax.defaults — Task 17
+// ---------------------------------------------------------------------------
+
+func TestDollarAx_Defaults_Exists(t *testing.T) {
+	rt := New()
+	val, err := rt.Execute(`typeof $ax.defaults`)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
+	}
+	if val.Export().(string) != "object" {
+		t.Fatalf("expected $ax.defaults to be an object, got %v", val.Export())
+	}
+}
+
+func TestDollarAx_Defaults_HasTimeout(t *testing.T) {
+	rt := New()
+	val, err := rt.Execute(`$ax.defaults.timeout`)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
+	}
+	timeout := val.ToInteger()
+	if timeout != 5000 {
+		t.Fatalf("expected default timeout=5000, got %d", timeout)
+	}
+}
+
+func TestDollarAx_Defaults_HasPollInterval(t *testing.T) {
+	rt := New()
+	val, err := rt.Execute(`$ax.defaults.pollInterval`)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
+	}
+	interval := val.ToInteger()
+	if interval != 200 {
+		t.Fatalf("expected default pollInterval=200, got %d", interval)
+	}
+}
+
+func TestDollarAx_Defaults_Writable(t *testing.T) {
+	rt := New()
+	_, err := rt.Execute(`$ax.defaults.timeout = 10000`)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
+	}
+	val, err := rt.Execute(`$ax.defaults.timeout`)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
+	}
+	if val.ToInteger() != 10000 {
+		t.Fatalf("expected timeout=10000 after write, got %d", val.ToInteger())
+	}
+}
+
+func TestDollarAx_Defaults_SurvivesReset(t *testing.T) {
+	rt := New()
+	// Defaults should be re-injected after Reset.
+	rt.Reset()
+	val, err := rt.Execute(`$ax.defaults.timeout`)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
+	}
+	if val.ToInteger() != 5000 {
+		t.Fatalf("expected default timeout=5000 after Reset, got %d", val.ToInteger())
+	}
+}
+
+func TestDollarAx_StillCallable(t *testing.T) {
+	// $ax should still be callable as a function after adding .defaults property.
+	rt := New()
+	val, err := rt.Execute(`typeof $ax`)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
+	}
+	// $ax might be a function or an object with [[Call]] — either is fine,
+	// but it must be callable.
+	typ := val.Export().(string)
+	if typ != "function" && typ != "object" {
+		t.Fatalf("expected $ax to be function or object, got %v", typ)
+	}
+	// Should still error when called without app.
+	_, err = rt.Execute(`$ax("AXButton")`)
+	if err == nil {
+		t.Fatal("expected error from $ax without app")
+	}
+}

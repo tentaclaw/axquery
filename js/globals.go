@@ -19,7 +19,7 @@ func (r *Runtime) injectGlobals() {
 	r.vm.Set("$log", r.jsLog)
 	r.vm.Set("$delay", r.jsDelay)
 	r.vm.Set("$app", r.jsApp)
-	r.vm.Set("$ax", r.jsAx)
+	r.injectAx()
 	r.vm.Set("$clipboard", r.jsClipboardObj())
 	r.vm.Set("$keyboard", r.jsKeyboardObj())
 	r.injectEnv()
@@ -89,7 +89,7 @@ func (r *Runtime) jsApp(call goja.FunctionCall) goja.Value {
 }
 
 // ---------------------------------------------------------------------------
-// $ax(selector) — query the current app (stub: returns object, full bridge in Task 16)
+// $ax(selector) — query the current app, with $ax.defaults
 // ---------------------------------------------------------------------------
 
 func (r *Runtime) jsAx(call goja.FunctionCall) goja.Value {
@@ -99,6 +99,23 @@ func (r *Runtime) jsAx(call goja.FunctionCall) goja.Value {
 	selector := call.Argument(0).String()
 	sel := axquery.Query(r.app, selector)
 	return r.wrapSelection(sel)
+}
+
+// injectAx sets up $ax as a callable function with a .defaults property.
+func (r *Runtime) injectAx() {
+	// Register $ax as a callable function first.
+	r.vm.Set("$ax", r.jsAx)
+
+	// Attach $ax.defaults as a writable object with default values.
+	defaults := r.vm.NewObject()
+	defaults.Set("timeout", 5000)
+	defaults.Set("pollInterval", 200)
+
+	// Get the $ax function value and set .defaults on it.
+	axVal := r.vm.Get("$ax")
+	if axObj, ok := axVal.(*goja.Object); ok {
+		axObj.Set("defaults", defaults)
+	}
 }
 
 // wrapSelection is defined in bridge.go (Task 16).

@@ -1162,16 +1162,19 @@ git commit -m "feat(axquery): bridge Go Selection to JS proxy object"
 
 ---
 
-### Task 17: JS 错误处理 + console
+### Task 17: JS 错误处理 + console ✅
 
 **Files:**
-- Modify: `js/globals.go`
-- Modify: `js/bridge.go`
+- Modified: `js/globals.go` — 添加 `injectAx()`, `$ax.defaults` 对象
+- Modified: `js/bridge.go` — 结构化错误转换, 终端方法抛出, `.err()` 返回结构化对象
 
 实现:
-- 结构化错误抛出: `throw {code: 'NOT_FOUND', message: '...', count: 0}`
-- console.log / console.warn / console.error 映射到 Go 日志
-- $ax.defaults 对象
+- 结构化错误抛出: terminal 方法（属性读取/actions/waits/scrolls）在 error selection 上抛出 `{code: 'NOT_FOUND', message: '...', selector: '...'}`
+- 错误类型映射: NotFoundError→NOT_FOUND, TimeoutError→TIMEOUT, AmbiguousError→AMBIGUOUS, InvalidSelectorError→INVALID_SELECTOR, NotActionableError→NOT_ACTIONABLE, 其他→ERROR
+- `.err()` 返回结构化对象（与 throw 相同 shape），无错误时返回 null
+- 非终端方法（query/traversal/subset/filter/inspection/iteration）保持链式不抛出
+- console.log/warn/error 已在 Task 15 中实现（复用 emitLog 路径）
+- `$ax.defaults` = `{timeout: 5000, pollInterval: 200}`，可写，Reset 后保持
 
 **Commit:**
 ```

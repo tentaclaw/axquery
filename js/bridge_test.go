@@ -109,10 +109,19 @@ func TestBridge_Err_WithError(t *testing.T) {
 	sel := axquery.NewSelectionError(fmt.Errorf("test error"), "AXButton")
 	got := evalWithSelection(t, sel, `sel.err()`)
 	if got == nil {
-		t.Fatal("expected error string, got null")
+		t.Fatal("expected error object, got null")
 	}
-	if !strings.Contains(got.(string), "test error") {
-		t.Fatalf("expected 'test error' in %q", got)
+	// .err() now returns a structured object, not a string.
+	m, ok := got.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map from err(), got %T: %v", got, got)
+	}
+	if m["code"] != "ERROR" {
+		t.Fatalf("expected code 'ERROR', got %v", m["code"])
+	}
+	msg, _ := m["message"].(string)
+	if !strings.Contains(msg, "test error") {
+		t.Fatalf("expected 'test error' in message %q", msg)
 	}
 }
 
@@ -796,6 +805,9 @@ func TestBridge_ErrorSelection_Chaining(t *testing.T) {
 
 func TestBridge_ErrorSelection_MethodsReturnSelection(t *testing.T) {
 	sel := axquery.NewSelectionError(fmt.Errorf("broken"), "AXButton")
+	// Non-throwing methods on error selection should still return wrapped Selections.
+	// Terminal methods (click, focus, scroll*, etc.) are now expected to throw,
+	// so they are tested separately in TestBridge_Terminal_*_ThrowsOnError.
 	methods := []string{
 		"sel.first()",
 		"sel.last()",
@@ -809,11 +821,6 @@ func TestBridge_ErrorSelection_MethodsReturnSelection(t *testing.T) {
 		"sel.siblings()",
 		"sel.next()",
 		"sel.prev()",
-		"sel.click()",
-		"sel.focus()",
-		"sel.scrollDown(1)",
-		"sel.scrollUp(1)",
-		"sel.scrollIntoView()",
 	}
 	for _, m := range methods {
 		rt := New(WithBridge(&fakeBridge{}))
@@ -873,5 +880,447 @@ func TestBridge_WaitUntil_NonFunction_Panics(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "waitUntil") || !strings.Contains(err.Error(), "function") {
 		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
+// ===========================================================================
+// Task 17: Structured errors — terminal methods throw on error selections
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Terminal property methods should throw structured JS exceptions on error sel
+// ---------------------------------------------------------------------------
+
+func TestBridge_Terminal_Text_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.text()`)
+	if err == nil {
+		t.Fatal("expected text() to throw on error selection")
+	}
+	// The thrown object is a structured JS object; its string representation
+	// via Go error is "[object Object]". Shape is tested in StructuredError tests.
+}
+
+func TestBridge_Terminal_Title_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.title()`)
+	if err == nil {
+		t.Fatal("expected title() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_Role_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.role()`)
+	if err == nil {
+		t.Fatal("expected role() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_Description_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.description()`)
+	if err == nil {
+		t.Fatal("expected description() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_Val_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.val()`)
+	if err == nil {
+		t.Fatal("expected val() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_Attr_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.attr("title")`)
+	if err == nil {
+		t.Fatal("expected attr() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_AttrOr_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.attrOr("title", "def")`)
+	if err == nil {
+		t.Fatal("expected attrOr() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_IsVisible_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.isVisible()`)
+	if err == nil {
+		t.Fatal("expected isVisible() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_IsEnabled_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.isEnabled()`)
+	if err == nil {
+		t.Fatal("expected isEnabled() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_IsFocused_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.isFocused()`)
+	if err == nil {
+		t.Fatal("expected isFocused() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_IsSelected_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.isSelected()`)
+	if err == nil {
+		t.Fatal("expected isSelected() to throw on error selection")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Terminal action methods should throw structured JS exceptions on error sel
+// ---------------------------------------------------------------------------
+
+func TestBridge_Terminal_Click_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.click()`)
+	if err == nil {
+		t.Fatal("expected click() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_SetValue_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXTextField"}, "AXTextField")
+	err := evalWithSelectionErr(t, sel, `sel.setValue("x")`)
+	if err == nil {
+		t.Fatal("expected setValue() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_TypeText_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXTextField"}, "AXTextField")
+	err := evalWithSelectionErr(t, sel, `sel.typeText("x")`)
+	if err == nil {
+		t.Fatal("expected typeText() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_Press_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.press("return")`)
+	if err == nil {
+		t.Fatal("expected press() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_Focus_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.focus()`)
+	if err == nil {
+		t.Fatal("expected focus() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_Perform_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.perform("AXPress")`)
+	if err == nil {
+		t.Fatal("expected perform() to throw on error selection")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Terminal wait methods should throw
+// ---------------------------------------------------------------------------
+
+func TestBridge_Terminal_WaitVisible_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.waitVisible(100)`)
+	if err == nil {
+		t.Fatal("expected waitVisible() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_WaitEnabled_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.waitEnabled(100)`)
+	if err == nil {
+		t.Fatal("expected waitEnabled() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_WaitGone_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.waitGone(100)`)
+	if err == nil {
+		t.Fatal("expected waitGone() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_WaitUntil_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.waitUntil(function(s) { return true; }, 100)`)
+	if err == nil {
+		t.Fatal("expected waitUntil() to throw on error selection")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Terminal scroll methods should throw
+// ---------------------------------------------------------------------------
+
+func TestBridge_Terminal_ScrollDown_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXScrollArea"}, "AXScrollArea")
+	err := evalWithSelectionErr(t, sel, `sel.scrollDown(1)`)
+	if err == nil {
+		t.Fatal("expected scrollDown() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_ScrollUp_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXScrollArea"}, "AXScrollArea")
+	err := evalWithSelectionErr(t, sel, `sel.scrollUp(1)`)
+	if err == nil {
+		t.Fatal("expected scrollUp() to throw on error selection")
+	}
+}
+
+func TestBridge_Terminal_ScrollIntoView_ThrowsOnError(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.scrollIntoView()`)
+	if err == nil {
+		t.Fatal("expected scrollIntoView() to throw on error selection")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Structured error object shape — catch and inspect thrown exception
+// ---------------------------------------------------------------------------
+
+func TestBridge_StructuredError_NotFound_Shape(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	// Catch the exception and inspect its shape.
+	got := evalWithSelection(t, sel, `
+		try {
+			sel.click();
+			"no_error";
+		} catch(e) {
+			JSON.stringify({code: e.code, message: e.message, selector: e.selector});
+		}
+	`)
+	s, ok := got.(string)
+	if !ok {
+		t.Fatalf("expected string from JSON.stringify, got %T: %v", got, got)
+	}
+	if !strings.Contains(s, `"code":"NOT_FOUND"`) {
+		t.Fatalf("expected code NOT_FOUND in %s", s)
+	}
+	if !strings.Contains(s, `"selector":"AXButton"`) {
+		t.Fatalf("expected selector in %s", s)
+	}
+	if !strings.Contains(s, `"message"`) {
+		t.Fatalf("expected message in %s", s)
+	}
+}
+
+func TestBridge_StructuredError_Timeout_Shape(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.TimeoutError{Selector: "AXButton", Duration: "5s"}, "AXButton")
+	got := evalWithSelection(t, sel, `
+		try {
+			sel.text();
+			"no_error";
+		} catch(e) {
+			JSON.stringify({code: e.code, selector: e.selector});
+		}
+	`)
+	s, ok := got.(string)
+	if !ok {
+		t.Fatalf("expected string, got %T: %v", got, got)
+	}
+	if !strings.Contains(s, `"code":"TIMEOUT"`) {
+		t.Fatalf("expected code TIMEOUT in %s", s)
+	}
+}
+
+func TestBridge_StructuredError_Ambiguous_Shape(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.AmbiguousError{Selector: "AXButton", Count: 3}, "AXButton")
+	got := evalWithSelection(t, sel, `
+		try {
+			sel.click();
+			"no_error";
+		} catch(e) {
+			JSON.stringify({code: e.code, count: e.count});
+		}
+	`)
+	s, ok := got.(string)
+	if !ok {
+		t.Fatalf("expected string, got %T: %v", got, got)
+	}
+	if !strings.Contains(s, `"code":"AMBIGUOUS"`) {
+		t.Fatalf("expected code AMBIGUOUS in %s", s)
+	}
+	if !strings.Contains(s, `"count":3`) {
+		t.Fatalf("expected count 3 in %s", s)
+	}
+}
+
+func TestBridge_StructuredError_InvalidSelector_Shape(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.InvalidSelectorError{Selector: "???", Reason: "bad syntax"}, "???")
+	got := evalWithSelection(t, sel, `
+		try {
+			sel.text();
+			"no_error";
+		} catch(e) {
+			JSON.stringify({code: e.code, selector: e.selector});
+		}
+	`)
+	s, ok := got.(string)
+	if !ok {
+		t.Fatalf("expected string, got %T: %v", got, got)
+	}
+	if !strings.Contains(s, `"code":"INVALID_SELECTOR"`) {
+		t.Fatalf("expected code INVALID_SELECTOR in %s", s)
+	}
+}
+
+func TestBridge_StructuredError_NotActionable_Shape(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotActionableError{Action: "click", Reason: "element disabled"}, "AXButton")
+	got := evalWithSelection(t, sel, `
+		try {
+			sel.click();
+			"no_error";
+		} catch(e) {
+			JSON.stringify({code: e.code, action: e.action});
+		}
+	`)
+	s, ok := got.(string)
+	if !ok {
+		t.Fatalf("expected string, got %T: %v", got, got)
+	}
+	if !strings.Contains(s, `"code":"NOT_ACTIONABLE"`) {
+		t.Fatalf("expected code NOT_ACTIONABLE in %s", s)
+	}
+	if !strings.Contains(s, `"action":"click"`) {
+		t.Fatalf("expected action click in %s", s)
+	}
+}
+
+func TestBridge_StructuredError_GenericError_Shape(t *testing.T) {
+	sel := axquery.NewSelectionError(fmt.Errorf("something unknown"), "AXButton")
+	got := evalWithSelection(t, sel, `
+		try {
+			sel.click();
+			"no_error";
+		} catch(e) {
+			JSON.stringify({code: e.code, message: e.message});
+		}
+	`)
+	s, ok := got.(string)
+	if !ok {
+		t.Fatalf("expected string, got %T: %v", got, got)
+	}
+	if !strings.Contains(s, `"code":"ERROR"`) {
+		t.Fatalf("expected code ERROR in %s", s)
+	}
+	if !strings.Contains(s, `something unknown`) {
+		t.Fatalf("expected error message in %s", s)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Terminal methods should NOT throw on healthy selections (no error)
+// ---------------------------------------------------------------------------
+
+func TestBridge_Terminal_Text_NoThrowOnHealthy(t *testing.T) {
+	sel := axquery.NewSelection(nil, "AXButton")
+	// Empty selection with no error — terminal methods should NOT throw.
+	err := evalWithSelectionErr(t, sel, `sel.text()`)
+	if err != nil {
+		t.Fatalf("text() on healthy empty selection should not throw: %v", err)
+	}
+}
+
+func TestBridge_Terminal_Click_NoThrowOnHealthy(t *testing.T) {
+	sel := axquery.NewSelection(nil, "AXButton")
+	err := evalWithSelectionErr(t, sel, `sel.click()`)
+	if err != nil {
+		t.Fatalf("click() on healthy empty selection should not throw: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Chained query → terminal: error propagates to terminal which throws
+// ---------------------------------------------------------------------------
+
+func TestBridge_Chain_FindThenClick_ThrowsNotFound(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXWindow"}, "AXWindow")
+	// find on error selection propagates error; click at end should throw.
+	err := evalWithSelectionErr(t, sel, `sel.find("AXButton").click()`)
+	if err == nil {
+		t.Fatal("expected click() at end of chain to throw when selection has error")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// .err() should return structured object instead of plain string
+// ---------------------------------------------------------------------------
+
+func TestBridge_Err_ReturnsStructuredObject_NotFound(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
+	got := evalWithSelection(t, sel, `
+		var e = sel.err();
+		JSON.stringify({code: e.code, message: e.message, selector: e.selector});
+	`)
+	s, ok := got.(string)
+	if !ok {
+		t.Fatalf("expected string from JSON.stringify, got %T: %v", got, got)
+	}
+	if !strings.Contains(s, `"code":"NOT_FOUND"`) {
+		t.Fatalf("expected code NOT_FOUND in err() result: %s", s)
+	}
+	if !strings.Contains(s, `"selector":"AXButton"`) {
+		t.Fatalf("expected selector in err() result: %s", s)
+	}
+}
+
+func TestBridge_Err_ReturnsStructuredObject_Timeout(t *testing.T) {
+	sel := axquery.NewSelectionError(&axquery.TimeoutError{Selector: "AXButton", Duration: "3s"}, "AXButton")
+	got := evalWithSelection(t, sel, `
+		var e = sel.err();
+		JSON.stringify({code: e.code, selector: e.selector});
+	`)
+	s, ok := got.(string)
+	if !ok {
+		t.Fatalf("expected string, got %T: %v", got, got)
+	}
+	if !strings.Contains(s, `"code":"TIMEOUT"`) {
+		t.Fatalf("expected code TIMEOUT in %s", s)
+	}
+}
+
+func TestBridge_Err_ReturnsStructuredObject_Generic(t *testing.T) {
+	sel := axquery.NewSelectionError(fmt.Errorf("some generic error"), "AXButton")
+	got := evalWithSelection(t, sel, `
+		var e = sel.err();
+		JSON.stringify({code: e.code, message: e.message});
+	`)
+	s, ok := got.(string)
+	if !ok {
+		t.Fatalf("expected string, got %T: %v", got, got)
+	}
+	if !strings.Contains(s, `"code":"ERROR"`) {
+		t.Fatalf("expected code ERROR in %s", s)
+	}
+}
+
+func TestBridge_Err_ReturnsNull_WhenNoError(t *testing.T) {
+	sel := axquery.NewSelection(nil, "AXButton")
+	got := evalWithSelection(t, sel, `sel.err()`)
+	if got != nil {
+		t.Fatalf("expected null from err() on healthy selection, got %v", got)
 	}
 }

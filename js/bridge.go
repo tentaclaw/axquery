@@ -1,6 +1,7 @@
 package js
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -12,6 +13,58 @@ import (
 // boolKind is cached to avoid repeated reflect.Bool allocation in hot paths.
 var boolKind = reflect.Bool
 
+// ---------------------------------------------------------------------------
+// Structured error conversion: Go error → JS object
+// ---------------------------------------------------------------------------
+
+// errorToJSObject converts a Go error into a structured JS object with code, message,
+// and type-specific fields (selector, count, action, timeout).
+func (r *Runtime) errorToJSObject(err error) *goja.Object {
+	obj := r.vm.NewObject()
+
+	// Default code and message.
+	code := "ERROR"
+	obj.Set("message", err.Error())
+
+	var nf *axquery.NotFoundError
+	var te *axquery.TimeoutError
+	var ae *axquery.AmbiguousError
+	var ise *axquery.InvalidSelectorError
+	var nae *axquery.NotActionableError
+
+	switch {
+	case errors.As(err, &nf):
+		code = "NOT_FOUND"
+		obj.Set("selector", nf.Selector)
+	case errors.As(err, &te):
+		code = "TIMEOUT"
+		obj.Set("selector", te.Selector)
+		obj.Set("timeout", te.Duration)
+	case errors.As(err, &ae):
+		code = "AMBIGUOUS"
+		obj.Set("selector", ae.Selector)
+		obj.Set("count", ae.Count)
+	case errors.As(err, &ise):
+		code = "INVALID_SELECTOR"
+		obj.Set("selector", ise.Selector)
+	case errors.As(err, &nae):
+		code = "NOT_ACTIONABLE"
+		obj.Set("action", nae.Action)
+	}
+
+	obj.Set("code", code)
+	return obj
+}
+
+// throwIfErr panics with a structured JS exception if sel carries an error.
+// This is used by terminal methods (property reads, actions, waits, scrolls)
+// to enforce "query silently, fail loudly on use" semantics.
+func (r *Runtime) throwIfErr(sel *axquery.Selection) {
+	if err := sel.Err(); err != nil {
+		panic(r.vm.ToValue(r.errorToJSObject(err)))
+	}
+}
+
 // wrapSelection wraps a Go *axquery.Selection as a fully-featured JS object.
 // Every Selection method is exposed as a camelCase JS method.
 // Methods returning *Selection recursively wrap the result for chaining.
@@ -19,14 +72,14 @@ func (r *Runtime) wrapSelection(sel *axquery.Selection) goja.Value {
 	obj := r.vm.NewObject()
 
 	// -----------------------------------------------------------------------
-	// Basic methods (selection.go)
+	// Basic methods (selection.go) — non-throwing
 	// -----------------------------------------------------------------------
 
 	obj.Set("count", func() int { return sel.Count() })
 	obj.Set("isEmpty", func() bool { return sel.IsEmpty() })
 	obj.Set("err", func() interface{} {
 		if err := sel.Err(); err != nil {
-			return err.Error()
+			return r.errorToJSObject(err)
 		}
 		return nil
 	})
@@ -37,7 +90,7 @@ func (r *Runtime) wrapSelection(sel *axquery.Selection) goja.Value {
 	obj.Set("slice", func(start, end int) goja.Value { return r.wrapSelection(sel.Slice(start, end)) })
 
 	// -----------------------------------------------------------------------
-	// Traversal methods (traversal.go)
+	// Traversal methods (traversal.go) — non-throwing
 	// -----------------------------------------------------------------------
 
 	obj.Set("find", func(s string) goja.Value { return r.wrapSelection(sel.Find(s)) })
@@ -53,7 +106,7 @@ func (r *Runtime) wrapSelection(sel *axquery.Selection) goja.Value {
 	obj.Set("prev", func() goja.Value { return r.wrapSelection(sel.Prev()) })
 
 	// -----------------------------------------------------------------------
-	// Filter methods (filter.go)
+	// Filter methods (filter.go) — non-throwing
 	// -----------------------------------------------------------------------
 
 	obj.Set("filter", func(s string) goja.Value { return r.wrapSelection(sel.Filter(s)) })
@@ -77,23 +130,23 @@ func (r *Runtime) wrapSelection(sel *axquery.Selection) goja.Value {
 	obj.Set("contains", func(text string) goja.Value { return r.wrapSelection(sel.Contains(text)) })
 
 	// -----------------------------------------------------------------------
-	// Property methods (property.go)
+	// Property methods (property.go) — TERMINAL: throw on error
 	// -----------------------------------------------------------------------
 
-	obj.Set("attr", func(name string) string { return sel.Attr(name) })
-	obj.Set("attrOr", func(name, def string) string { return sel.AttrOr(name, def) })
-	obj.Set("role", func() string { return sel.Role() })
-	obj.Set("title", func() string { return sel.Title() })
-	obj.Set("description", func() string { return sel.Description() })
-	obj.Set("val", func() string { return sel.Val() })
-	obj.Set("text", func() string { return sel.Text() })
-	obj.Set("isVisible", func() bool { return sel.IsVisible() })
-	obj.Set("isEnabled", func() bool { return sel.IsEnabled() })
-	obj.Set("isFocused", func() bool { return sel.IsFocused() })
-	obj.Set("isSelected", func() bool { return sel.IsSelected() })
+	obj.Set("attr", func(name string) string { r.throwIfErr(sel); return sel.Attr(name) })
+	obj.Set("attrOr", func(name, def string) string { r.throwIfErr(sel); return sel.AttrOr(name, def) })
+	obj.Set("role", func() string { r.throwIfErr(sel); return sel.Role() })
+	obj.Set("title", func() string { r.throwIfErr(sel); return sel.Title() })
+	obj.Set("description", func() string { r.throwIfErr(sel); return sel.Description() })
+	obj.Set("val", func() string { r.throwIfErr(sel); return sel.Val() })
+	obj.Set("text", func() string { r.throwIfErr(sel); return sel.Text() })
+	obj.Set("isVisible", func() bool { r.throwIfErr(sel); return sel.IsVisible() })
+	obj.Set("isEnabled", func() bool { r.throwIfErr(sel); return sel.IsEnabled() })
+	obj.Set("isFocused", func() bool { r.throwIfErr(sel); return sel.IsFocused() })
+	obj.Set("isSelected", func() bool { r.throwIfErr(sel); return sel.IsSelected() })
 
 	// -----------------------------------------------------------------------
-	// Iteration methods (iteration.go)
+	// Iteration methods (iteration.go) — non-throwing
 	// -----------------------------------------------------------------------
 
 	obj.Set("each", func(call goja.FunctionCall) goja.Value {
@@ -133,13 +186,14 @@ func (r *Runtime) wrapSelection(sel *axquery.Selection) goja.Value {
 	})
 
 	// -----------------------------------------------------------------------
-	// Action methods (action.go)
+	// Action methods (action.go) — TERMINAL: throw on error
 	// -----------------------------------------------------------------------
 
-	obj.Set("click", func() goja.Value { return r.wrapSelection(sel.Click()) })
-	obj.Set("setValue", func(v string) goja.Value { return r.wrapSelection(sel.SetValue(v)) })
-	obj.Set("typeText", func(text string) goja.Value { return r.wrapSelection(sel.TypeText(text)) })
+	obj.Set("click", func() goja.Value { r.throwIfErr(sel); return r.wrapSelection(sel.Click()) })
+	obj.Set("setValue", func(v string) goja.Value { r.throwIfErr(sel); return r.wrapSelection(sel.SetValue(v)) })
+	obj.Set("typeText", func(text string) goja.Value { r.throwIfErr(sel); return r.wrapSelection(sel.TypeText(text)) })
 	obj.Set("press", func(call goja.FunctionCall) goja.Value {
+		r.throwIfErr(sel)
 		key := call.Argument(0).String()
 		var mods []string
 		for i := 1; i < len(call.Arguments); i++ {
@@ -147,14 +201,15 @@ func (r *Runtime) wrapSelection(sel *axquery.Selection) goja.Value {
 		}
 		return r.wrapSelection(sel.Press(key, mods...))
 	})
-	obj.Set("focus", func() goja.Value { return r.wrapSelection(sel.Focus()) })
-	obj.Set("perform", func(action string) goja.Value { return r.wrapSelection(sel.Perform(action)) })
+	obj.Set("focus", func() goja.Value { r.throwIfErr(sel); return r.wrapSelection(sel.Focus()) })
+	obj.Set("perform", func(action string) goja.Value { r.throwIfErr(sel); return r.wrapSelection(sel.Perform(action)) })
 
 	// -----------------------------------------------------------------------
-	// Wait methods (waiting.go)
+	// Wait methods (waiting.go) — TERMINAL: throw on error
 	// -----------------------------------------------------------------------
 
 	obj.Set("waitUntil", func(call goja.FunctionCall) goja.Value {
+		r.throwIfErr(sel)
 		fn, ok := goja.AssertFunction(call.Argument(0))
 		if !ok {
 			panic(r.vm.NewGoError(errNotAFunction("waitUntil")))
@@ -171,22 +226,25 @@ func (r *Runtime) wrapSelection(sel *axquery.Selection) goja.Value {
 		return r.wrapSelection(result)
 	})
 	obj.Set("waitVisible", func(ms int64) goja.Value {
+		r.throwIfErr(sel)
 		return r.wrapSelection(sel.WaitVisible(time.Duration(ms) * time.Millisecond))
 	})
 	obj.Set("waitEnabled", func(ms int64) goja.Value {
+		r.throwIfErr(sel)
 		return r.wrapSelection(sel.WaitEnabled(time.Duration(ms) * time.Millisecond))
 	})
 	obj.Set("waitGone", func(ms int64) goja.Value {
+		r.throwIfErr(sel)
 		return r.wrapSelection(sel.WaitGone(time.Duration(ms) * time.Millisecond))
 	})
 
 	// -----------------------------------------------------------------------
-	// Scroll methods (scroll.go)
+	// Scroll methods (scroll.go) — TERMINAL: throw on error
 	// -----------------------------------------------------------------------
 
-	obj.Set("scrollDown", func(n int) goja.Value { return r.wrapSelection(sel.ScrollDown(n)) })
-	obj.Set("scrollUp", func(n int) goja.Value { return r.wrapSelection(sel.ScrollUp(n)) })
-	obj.Set("scrollIntoView", func() goja.Value { return r.wrapSelection(sel.ScrollIntoView()) })
+	obj.Set("scrollDown", func(n int) goja.Value { r.throwIfErr(sel); return r.wrapSelection(sel.ScrollDown(n)) })
+	obj.Set("scrollUp", func(n int) goja.Value { r.throwIfErr(sel); return r.wrapSelection(sel.ScrollUp(n)) })
+	obj.Set("scrollIntoView", func() goja.Value { r.throwIfErr(sel); return r.wrapSelection(sel.ScrollIntoView()) })
 
 	return obj
 }
