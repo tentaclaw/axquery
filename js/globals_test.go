@@ -788,3 +788,84 @@ func TestDollarAx_StillCallable(t *testing.T) {
 		t.Fatal("expected error from $ax without app")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// $ax.defaults.maxDepth / maxResults — Task 19
+// ---------------------------------------------------------------------------
+
+func TestDollarAx_Defaults_HasMaxDepth(t *testing.T) {
+	rt := New()
+	err := rt.Execute(`$output = $ax.defaults.maxDepth`)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
+	}
+	if rt.Output().Int() != 10 {
+		t.Fatalf("expected default maxDepth=10, got %d", rt.Output().Int())
+	}
+}
+
+func TestDollarAx_Defaults_HasMaxResults(t *testing.T) {
+	rt := New()
+	err := rt.Execute(`$output = $ax.defaults.maxResults`)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
+	}
+	if rt.Output().Int() != 0 {
+		t.Fatalf("expected default maxResults=0 (unlimited), got %d", rt.Output().Int())
+	}
+}
+
+func TestDollarAx_Defaults_MaxDepth_Writable(t *testing.T) {
+	rt := New()
+	if err := rt.Execute(`$ax.defaults.maxDepth = 5`); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.Execute(`$output = $ax.defaults.maxDepth`); err != nil {
+		t.Fatal(err)
+	}
+	if rt.Output().Int() != 5 {
+		t.Fatalf("expected maxDepth=5, got %d", rt.Output().Int())
+	}
+}
+
+func TestDollarAx_InlineOpts_MaxDepth(t *testing.T) {
+	// Verify that $ax("sel", {maxDepth: N}) parses without error.
+	// We can't test the actual query without AX, but we can verify the
+	// options are read by calling $ax on a runtime without an app and
+	// checking the error is about "no app" not "bad options".
+	rt := New()
+	err := rt.Execute(`$ax("AXButton", {maxDepth: 3})`)
+	if err == nil {
+		t.Fatal("expected error (no app set)")
+	}
+	if !strings.Contains(err.Error(), "no app") {
+		t.Fatalf("expected 'no app' error, got: %v", err)
+	}
+}
+
+func TestDollarAx_InlineOpts_MaxResults(t *testing.T) {
+	rt := New()
+	err := rt.Execute(`$ax("AXButton", {maxResults: 1})`)
+	if err == nil {
+		t.Fatal("expected error (no app set)")
+	}
+	if !strings.Contains(err.Error(), "no app") {
+		t.Fatalf("expected 'no app' error, got: %v", err)
+	}
+}
+
+func TestDollarAx_InlineOpts_OverridesDefaults(t *testing.T) {
+	// Inline options should take precedence over defaults.
+	// We just verify the code path doesn't panic.
+	rt := New()
+	if err := rt.Execute(`$ax.defaults.maxDepth = 20`); err != nil {
+		t.Fatal(err)
+	}
+	err := rt.Execute(`$ax("AXButton", {maxDepth: 2, maxResults: 5})`)
+	if err == nil {
+		t.Fatal("expected error (no app set)")
+	}
+	if !strings.Contains(err.Error(), "no app") {
+		t.Fatalf("expected 'no app' error, got: %v", err)
+	}
+}

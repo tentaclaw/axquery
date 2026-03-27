@@ -1,6 +1,6 @@
 # 决策记录
 
-> 最后更新：2026-03-27（Task 18 完成后）
+> 最后更新：2026-03-27（Task 19 完成后）
 
 ## 1. 已确认决策
 
@@ -111,6 +111,13 @@
 | 103 | **$output 重新初始化方式** | `injectOutput()` 不再保存 `*goja.Object` 引用，直接 `r.vm.Set("$output", r.vm.NewObject())`；脚本可以赋值标量（`$output = 42`）或保持对象写法（`$output.foo = "bar"`） | 2026-03-27 |
 | 104 | **ResultType 枚举** | Result.Type() 返回 ResultType 枚举（Nil/String/Int/Float/Bool/Slice/Map），方便 switch 分发；未知类型映射到 ResultNil | 2026-03-27 |
 | 105 | **编译期接口断言** | `js/runtime.go` 中 `var _ axquery.Executor = (*Runtime)(nil)` 确保 `Runtime` 始终实现 `Executor` 接口；编译不过则立即暴露 | 2026-03-27 |
+| 106 | **$ax.defaults.maxDepth 默认 10** | JS 侧 `$ax.defaults.maxDepth = 10` 限制 BFS 遍历深度；Mail 等大型应用 AX 树可达数万节点，无界遍历会导致挂起。10 层覆盖绝大多数 UI 结构 | 2026-03-27 |
+| 107 | **$ax.defaults.maxResults 默认 0（无限制）** | `maxResults = 0` 表示不限制结果数量；与 maxDepth 配合使用——深度限制已足够防止爆炸，结果数量限制留给用户按需设置 | 2026-03-27 |
+| 108 | **$ax 第二参数内联选项** | `$ax("AXButton", {maxDepth: 2})` 支持内联覆盖 defaults；合并优先级：内联 > defaults > 硬编码默认值。适用于需要浅层快速查询的场景 | 2026-03-27 |
+| 109 | **E2E 测试使用 Mail.app** | 真实 app E2E 选择 Mail.app 而非 Finder：Mail 的 AX 树更深更复杂（测试深度限制的真实价值）；Mail 有 toolbar/buttons/staticText 等丰富 UI 元素；Finder 的 AX 行为因版本差异较大 | 2026-03-27 |
+| 110 | **Mail E2E 使用浅层查询** | Mail.app 测试中 `$ax("AXToolbar", {maxDepth: 2})` 而非 `$ax("AXToolbar")`；避免对整个 Mail AX 子树的深度遍历；实测浅查询 < 1s vs 无界查询可能挂起 | 2026-03-27 |
+| 111 | **E2E 邮件发送测试依赖环境变量** | `TestE2E_MailComposeAndSend` 需要 `TENTACLAW_TEST_EMAIL` 环境变量；不设置则 skip——避免在 CI 或无权限环境中误发邮件 | 2026-03-27 |
+| 112 | **E2E 分两类：纯逻辑 + 真实 AX** | `integration_test.go` 中纯逻辑 E2E（多步 JS→$output→Result 验证）不需要 AX 权限，任何平台可跑；真实 AX E2E（Mail 查询）需要 macOS + AX 权限，自动 skip 如果不可用 | 2026-03-27 |
 
 ## 2. 关键发现
 
@@ -170,6 +177,16 @@ rootResolver（根节点获取接口）
 **成果：** query 引擎的 BFS/DFS 逻辑、elementAdapter 的属性映射、queryWithResolver 的根解析都可以纯 mock 单测。CGo 依赖仅存在于两个薄封装 (`appRootResolver.resolveRoot` 和 `Query`)，它们只在集成测试中覆盖。
 
 总覆盖率 95.5%+，满足 95%+ 要求。
+
+### 2.6 Mail.app AX 树深度与无界遍历风险
+
+在 Task 19 E2E 测试中发现，Mail.app 的 AX 树极深（数万节点），`$ax("AXWindow")` 式的无界 BFS 查询可能导致 JS 运行时挂起。根因：
+
+- `Query(...)` BFS 遍历无深度限制时，会递归展开所有子节点
+- Mail 的 `AXSplitGroup` → `AXScrollArea` → `AXTable` → `AXRow` × N → `AXCell` × N 路径可达数千节点
+- CGo 调用 AXUIElement API 是同步阻塞的，大量子节点遍历耗时指数增长
+
+**解决方案：** JS 侧引入 `$ax.defaults.maxDepth = 10`，BFS 超过深度限制自动停止。同时支持 `$ax("AXToolbar", {maxDepth: 2})` 内联覆盖，允许精确控制查询范围。实测效果：Mail toolbar 查询从"可能挂起"降至 < 1s。
 
 ## 3. 旧系统审计摘要
 

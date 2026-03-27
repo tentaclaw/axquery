@@ -96,8 +96,46 @@ func (r *Runtime) jsAx(call goja.FunctionCall) goja.Value {
 	if r.app == nil {
 		panic(r.vm.NewGoError(fmt.Errorf("$ax: no app set (call $app or SetApp first)")))
 	}
-	selector := call.Argument(0).String()
-	sel := axquery.Query(r.app, selector)
+	selectorStr := call.Argument(0).String()
+
+	// Read $ax.defaults for query options.
+	var opts []axquery.QueryOption
+	if axVal := r.vm.Get("$ax"); axVal != nil {
+		if axObj, ok := axVal.(*goja.Object); ok {
+			if defVal := axObj.Get("defaults"); defVal != nil && !goja.IsUndefined(defVal) {
+				if defObj, ok := defVal.(*goja.Object); ok {
+					if md := defObj.Get("maxDepth"); md != nil && !goja.IsUndefined(md) {
+						if v := md.ToInteger(); v > 0 {
+							opts = append(opts, axquery.WithMaxDepth(int(v)))
+						}
+					}
+					if mr := defObj.Get("maxResults"); mr != nil && !goja.IsUndefined(mr) {
+						if v := mr.ToInteger(); v > 0 {
+							opts = append(opts, axquery.WithMaxResults(int(v)))
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Also support an optional second argument: $ax("sel", {maxDepth: 3})
+	if arg1 := call.Argument(1); arg1 != nil && !goja.IsUndefined(arg1) {
+		if optsObj, ok := arg1.(*goja.Object); ok {
+			if md := optsObj.Get("maxDepth"); md != nil && !goja.IsUndefined(md) {
+				if v := md.ToInteger(); v > 0 {
+					opts = append(opts, axquery.WithMaxDepth(int(v)))
+				}
+			}
+			if mr := optsObj.Get("maxResults"); mr != nil && !goja.IsUndefined(mr) {
+				if v := mr.ToInteger(); v > 0 {
+					opts = append(opts, axquery.WithMaxResults(int(v)))
+				}
+			}
+		}
+	}
+
+	sel := axquery.Query(r.app, selectorStr, opts...)
 	return r.wrapSelection(sel)
 }
 
@@ -110,6 +148,8 @@ func (r *Runtime) injectAx() {
 	defaults := r.vm.NewObject()
 	defaults.Set("timeout", 5000)
 	defaults.Set("pollInterval", 200)
+	defaults.Set("maxDepth", 10)  // safe default to avoid deep-tree blocking
+	defaults.Set("maxResults", 0) // 0 = unlimited
 
 	// Get the $ax function value and set .defaults on it.
 	axVal := r.vm.Get("$ax")

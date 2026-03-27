@@ -1219,43 +1219,58 @@ git commit -m "feat(axquery): add Executor interface and Result type, hide goja 
 
 ## Phase 4: 端到端验证
 
-### Task 19: 端到端集成测试
+### Task 19: 端到端集成测试 ✅
+
+**实际实现：** 两部分端到端测试 — 纯逻辑 E2E + Mail.app 真实 AX E2E
 
 **Files:**
-- Create: `integration_test.go`
+- Create: `integration_test.go` — 包含所有 E2E 测试
+- Modified: `js/globals.go` — `$ax.defaults` 增加 `maxDepth`/`maxResults`，`jsAx` 支持内联选项参数
+- Modified: `js/globals_test.go` — 新增 `$ax.defaults.maxDepth/maxResults` 单测
 
-完整测试:
-1. 创建 Runtime
-2. 设置 Finder 为目标应用
-3. 执行 JS 脚本查询按钮
-4. 验证返回结果
-5. 执行 JS 脚本读取窗口属性
-6. 验证属性值
+**测试分两部分：**
 
-```go
-func TestE2E_JSQueryFinder(t *testing.T) {
-    script := `
-        $app('com.apple.finder');
-        var buttons = $ax('AXButton');
-        var count = buttons.count();
-        var titles = [];
-        buttons.each(function(i, btn) {
-            if (i >= 5) return false;
-            titles.push(btn.title());
-        });
-        $output.count = count;
-        $output.titles = titles;
-    `
-    rt := js.New()
-    result, err := rt.Execute(script)
-    // 验证 result
-}
-```
+**Part 1: 纯逻辑 E2E（无 AX 依赖）**
+- `TestE2E_InputOutputRoundTrip` — $input/$output 往返
+- `TestE2E_OutputScalar` — 标量输出（int/bool/string）
+- `TestE2E_OutputObject` — 对象输出
+- `TestE2E_OutputArray` — 数组输出
+- `TestE2E_EnvVariables` — $env 环境变量
+- `TestE2E_SyntaxError` — 语法错误 → ScriptError
+- `TestE2E_RuntimeThrow` — throw → ScriptError
+- `TestE2E_Timeout` — 超时中断
+- `TestE2E_ExecuteFile` — 文件执行
+- `TestE2E_ResetIsolation` — Reset 隔离
+- `TestE2E_MultipleScriptsShareState` — 多脚本共享状态
+- `TestE2E_ConsoleLog` — console.log/warn/error
+- `TestE2E_OutputResultType` — Result.Type() 枚举
+
+**Part 2: Mail.app E2E（需要 AX 权限 + Mail 运行）**
+- `TestE2E_MailQueryToolbar` — 查询 AXToolbar（maxDepth:2）
+- `TestE2E_MailQueryButtons` — 查询 AXButton（maxDepth:2）
+- `TestE2E_MailReadStaticTexts` — 查询 AXStaticText（maxDepth:2）
+- `TestE2E_MailComposeAndSend` — 需要 `TENTACLAW_TEST_EMAIL` 环境变量
+- `TestE2E_MailInvalidSelector` — 结构化错误处理
+
+**关键技术变更：**
+1. `$ax.defaults` 新增 `maxDepth=10`（安全默认值）和 `maxResults=0`（无限制）
+2. `jsAx()` 读取 `$ax.defaults.maxDepth/maxResults` 并传给 `axquery.Query`
+3. `jsAx()` 支持第二参数内联选项：`$ax("AXToolbar", {maxDepth: 2})`
+4. 内联选项覆盖 defaults（append 到 opts 数组后面）
+5. Mail E2E 使用浅查询（maxDepth:2）避免深树阻塞
+
+**发现与解决：**
+- 无限制深度遍历 Mail AX 树会阻塞在 CGo 调用中
+- `ax` 包本身工作正常（经独立验证）
+- 问题在 `axquery.Query` BFS 遍历无深度限制时展开 Mail 完整子树
+- 解决方案：JS 侧默认 maxDepth=10 + 支持内联覆盖
+
+**覆盖率：** root 96.0% / js 95.1% / selector 97.1%
 
 **Commit:**
 ```
 git add -A
-git commit -m "test(axquery): add E2E integration tests"
+git commit -m "test(axquery): add E2E integration tests with Mail.app + JS query depth limiting"
 ```
 
 ---
@@ -1288,8 +1303,8 @@ git commit -m "docs(axquery): add README with examples"
 | 1: 脚手架+选择器 | Task 1-4 | 2-3 hours | ✅ 完成 |
 | 2: Selection 核心 | Task 5-13 | 4-6 hours | ✅ 完成 |
 | 3: JS 运行时 | Task 14-18 | 3-4 hours | ✅ 完成 |
-| 4: 集成测试+文档 | Task 19-20 | 1-2 hours | ⬜ 未开始 |
-| **总计** | **20 Tasks** | **~10-15 hours** | **18/20 完成** |
+| 4: 集成测试+文档 | Task 19-20 | 1-2 hours | 🚧 Task 19 完成 |
+| **总计** | **20 Tasks** | **~10-15 hours** | **19/20 完成** |
 
 ## 依赖关系
 
