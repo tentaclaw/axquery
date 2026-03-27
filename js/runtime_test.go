@@ -16,69 +16,66 @@ import (
 
 func TestNew_CanExecuteJS(t *testing.T) {
 	rt := New()
-	val, err := rt.Execute("2 + 2")
+	err := rt.Execute("$output = 2 + 2")
 	if err != nil {
 		t.Fatalf("New() runtime cannot execute JS: %v", err)
 	}
-	if val.ToInteger() != 4 {
-		t.Fatalf("expected 4, got %v", val.Export())
+	if rt.Output().Int() != 4 {
+		t.Fatalf("expected 4, got %v", rt.Output().Raw())
 	}
 }
 
 func TestExecute_BasicArithmetic(t *testing.T) {
 	rt := New()
-	val, err := rt.Execute("1 + 2")
+	err := rt.Execute("$output = 1 + 2")
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	if val.ToInteger() != 3 {
-		t.Fatalf("expected 3, got %v", val.Export())
+	if rt.Output().Int() != 3 {
+		t.Fatalf("expected 3, got %v", rt.Output().Raw())
 	}
 }
 
 func TestExecute_StringResult(t *testing.T) {
 	rt := New()
-	val, err := rt.Execute(`"hello" + " " + "world"`)
+	err := rt.Execute(`$output = "hello" + " " + "world"`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	if val.Export().(string) != "hello world" {
-		t.Fatalf("expected 'hello world', got %v", val.Export())
+	if rt.Output().String() != "hello world" {
+		t.Fatalf("expected 'hello world', got %v", rt.Output().Raw())
 	}
 }
 
 func TestExecute_BoolResult(t *testing.T) {
 	rt := New()
-	val, err := rt.Execute("true && false")
+	err := rt.Execute("$output = true && false")
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	if val.ToBoolean() != false {
-		t.Fatalf("expected false, got %v", val.Export())
+	if rt.Output().Bool() != false {
+		t.Fatalf("expected false, got %v", rt.Output().Raw())
 	}
 }
 
 func TestExecute_UndefinedResult(t *testing.T) {
 	rt := New()
-	val, err := rt.Execute("var x = 42;")
+	err := rt.Execute("var x = 42;")
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	// var declaration evaluates to undefined
-	if val.Export() != nil {
-		t.Fatalf("expected nil (undefined), got %v", val.Export())
-	}
+	// $output was not assigned, so it stays as the initial empty object.
 }
 
 func TestExecute_ObjectResult(t *testing.T) {
 	rt := New()
-	val, err := rt.Execute(`({name: "test", value: 42})`)
+	err := rt.Execute(`$output = {name: "test", value: 42}`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	m, ok := val.Export().(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected map, got %T", val.Export())
+	m := rt.Output().Map()
+	if m == nil {
+		t.Fatalf("expected map, got nil")
 	}
 	if m["name"] != "test" {
 		t.Fatalf("expected name=test, got %v", m["name"])
@@ -87,13 +84,13 @@ func TestExecute_ObjectResult(t *testing.T) {
 
 func TestExecute_ArrayResult(t *testing.T) {
 	rt := New()
-	val, err := rt.Execute("[1, 2, 3]")
+	err := rt.Execute("$output = [1, 2, 3]")
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	arr, ok := val.Export().([]interface{})
-	if !ok {
-		t.Fatalf("expected []interface{}, got %T", val.Export())
+	arr := rt.Output().Slice()
+	if arr == nil {
+		t.Fatalf("expected slice, got nil")
 	}
 	if len(arr) != 3 {
 		t.Fatalf("expected length 3, got %d", len(arr))
@@ -116,7 +113,7 @@ func TestExecute_ArrayResult(t *testing.T) {
 
 func TestExecute_SyntaxError(t *testing.T) {
 	rt := New()
-	_, err := rt.Execute("function {")
+	err := rt.Execute("function {")
 	if err == nil {
 		t.Fatal("expected syntax error, got nil")
 	}
@@ -124,7 +121,7 @@ func TestExecute_SyntaxError(t *testing.T) {
 
 func TestExecute_ThrowError(t *testing.T) {
 	rt := New()
-	_, err := rt.Execute(`throw new Error("boom")`)
+	err := rt.Execute(`throw new Error("boom")`)
 	if err == nil {
 		t.Fatal("expected error from throw, got nil")
 	}
@@ -132,7 +129,7 @@ func TestExecute_ThrowError(t *testing.T) {
 
 func TestExecute_ReferenceError(t *testing.T) {
 	rt := New()
-	_, err := rt.Execute("nonExistentVar.foo")
+	err := rt.Execute("nonExistentVar.foo")
 	if err == nil {
 		t.Fatal("expected ReferenceError, got nil")
 	}
@@ -144,16 +141,16 @@ func TestExecute_ReferenceError(t *testing.T) {
 
 func TestExecute_PreservesState(t *testing.T) {
 	rt := New()
-	_, err := rt.Execute("var counter = 10;")
+	err := rt.Execute("var counter = 10;")
 	if err != nil {
 		t.Fatalf("first Execute error: %v", err)
 	}
-	val, err := rt.Execute("counter + 5")
+	err = rt.Execute("$output = counter + 5")
 	if err != nil {
 		t.Fatalf("second Execute error: %v", err)
 	}
-	if val.ToInteger() != 15 {
-		t.Fatalf("expected 15, got %v", val.Export())
+	if rt.Output().Int() != 15 {
+		t.Fatalf("expected 15, got %v", rt.Output().Raw())
 	}
 }
 
@@ -164,23 +161,23 @@ func TestExecute_PreservesState(t *testing.T) {
 func TestExecuteFile_BasicScript(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.js")
-	if err := os.WriteFile(path, []byte("40 + 2"), 0644); err != nil {
+	if err := os.WriteFile(path, []byte("$output = 40 + 2"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	rt := New()
-	val, err := rt.ExecuteFile(path)
+	err := rt.ExecuteFile(path)
 	if err != nil {
 		t.Fatalf("ExecuteFile error: %v", err)
 	}
-	if val.ToInteger() != 42 {
-		t.Fatalf("expected 42, got %v", val.Export())
+	if rt.Output().Int() != 42 {
+		t.Fatalf("expected 42, got %v", rt.Output().Raw())
 	}
 }
 
 func TestExecuteFile_NonExistentFile(t *testing.T) {
 	rt := New()
-	_, err := rt.ExecuteFile("/no/such/file.js")
+	err := rt.ExecuteFile("/no/such/file.js")
 	if err == nil {
 		t.Fatal("expected error for non-existent file, got nil")
 	}
@@ -194,7 +191,7 @@ func TestExecuteFile_SyntaxError(t *testing.T) {
 	}
 
 	rt := New()
-	_, err := rt.ExecuteFile(path)
+	err := rt.ExecuteFile(path)
 	if err == nil {
 		t.Fatal("expected syntax error from file, got nil")
 	}
@@ -206,23 +203,21 @@ func TestExecuteFile_SyntaxError(t *testing.T) {
 
 func TestExecute_Timeout(t *testing.T) {
 	rt := New(WithTimeout(50 * time.Millisecond))
-	_, err := rt.Execute("while(true) {}")
+	err := rt.Execute("while(true) {}")
 	if err == nil {
 		t.Fatal("expected timeout error, got nil")
 	}
 	// The error should be an interrupt error — we just need it to be non-nil.
-	// Specific type checking can happen later; for now, "any error" from infinite
-	// loop + short timeout is correct behavior.
 }
 
 func TestExecute_NoTimeoutForFastScript(t *testing.T) {
 	rt := New(WithTimeout(1 * time.Second))
-	val, err := rt.Execute("1 + 1")
+	err := rt.Execute("$output = 1 + 1")
 	if err != nil {
 		t.Fatalf("fast script should not timeout: %v", err)
 	}
-	if val.ToInteger() != 2 {
-		t.Fatalf("expected 2, got %v", val.Export())
+	if rt.Output().Int() != 2 {
+		t.Fatalf("expected 2, got %v", rt.Output().Raw())
 	}
 }
 
@@ -236,7 +231,7 @@ func TestWithOnLog_ReceivesLogs(t *testing.T) {
 		logs = append(logs, level+":"+msg)
 	}))
 	// Actually trigger the callback via $log (injected global).
-	_, err := rt.Execute(`$log("hello"); $log("world")`)
+	err := rt.Execute(`$log("hello"); $log("world")`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
@@ -261,8 +256,6 @@ func TestWithOnError_CallbackStored(t *testing.T) {
 		errs = append(errs, err)
 	}))
 	// Verify the callback is stored by checking the config field directly.
-	// OnError is stored for future use (e.g., unhandled promise rejections).
-	// We verify it was actually stored by calling it through the config.
 	if rt.conf.onError == nil {
 		t.Fatal("WithOnError: callback not stored in config")
 	}
@@ -294,7 +287,7 @@ func TestNew_MultipleOptions_AllApplied(t *testing.T) {
 		t.Fatalf("expected timeout 5s, got %v", rt.conf.timeout)
 	}
 	// Verify onLog works.
-	_, err := rt.Execute(`$log("multi-opt")`)
+	err := rt.Execute(`$log("multi-opt")`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,7 +306,7 @@ func TestNew_MultipleOptions_AllApplied(t *testing.T) {
 
 func TestReset_ClearsState(t *testing.T) {
 	rt := New()
-	_, err := rt.Execute("var foo = 42;")
+	err := rt.Execute("var foo = 42;")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,11 +314,9 @@ func TestReset_ClearsState(t *testing.T) {
 	rt.Reset()
 
 	// After reset, foo should no longer exist.
-	_, err = rt.Execute("foo")
+	err = rt.Execute("foo")
 	if err == nil {
 		// If foo still exists (returns 42 without error), reset didn't work.
-		// Note: in goja, accessing undefined var throws ReferenceError.
-		// But if the VM was truly reset, foo is gone.
 		t.Fatal("expected ReferenceError after Reset, got nil error")
 	}
 }
@@ -338,7 +329,7 @@ func TestSetApp_NilApp_AxStillFails(t *testing.T) {
 	rt := New()
 	rt.SetApp(nil)
 	// With nil app, $ax should error since it requires an app.
-	_, err := rt.Execute(`$ax("AXButton")`)
+	err := rt.Execute(`$ax("AXButton")`)
 	if err == nil {
 		t.Fatal("expected error from $ax with nil app, got nil")
 	}
@@ -350,13 +341,9 @@ func TestSetApp_NilApp_AxStillFails(t *testing.T) {
 
 func TestExecute_EmptyScript(t *testing.T) {
 	rt := New()
-	val, err := rt.Execute("")
+	err := rt.Execute("")
 	if err != nil {
 		t.Fatalf("empty script should not error: %v", err)
-	}
-	// Empty script evaluates to undefined (nil export).
-	if val.Export() != nil {
-		t.Fatalf("expected nil (undefined) from empty script, got %v", val.Export())
 	}
 }
 
@@ -372,17 +359,17 @@ func TestExecuteFile_PreservesState(t *testing.T) {
 	}
 
 	rt := New()
-	_, err := rt.ExecuteFile(path)
+	err := rt.ExecuteFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	val, err := rt.Execute("setupDone")
+	err = rt.Execute("$output = setupDone")
 	if err != nil {
 		t.Fatalf("expected setupDone to be defined: %v", err)
 	}
-	if val.ToBoolean() != true {
-		t.Fatalf("expected true, got %v", val.Export())
+	if rt.Output().Bool() != true {
+		t.Fatalf("expected true, got %v", rt.Output().Raw())
 	}
 }
 
@@ -394,19 +381,19 @@ func TestExecute_TimeoutRecovery(t *testing.T) {
 	rt := New(WithTimeout(50 * time.Millisecond))
 
 	// First: timeout
-	_, err := rt.Execute("while(true) {}")
+	err := rt.Execute("while(true) {}")
 	if err == nil {
 		t.Fatal("expected timeout error")
 	}
 
 	// After timeout, we should be able to Reset and run again.
 	rt.Reset()
-	val, err := rt.Execute("1 + 1")
+	err = rt.Execute("$output = 1 + 1")
 	if err != nil {
 		t.Fatalf("after Reset, expected no error: %v", err)
 	}
-	if val.ToInteger() != 2 {
-		t.Fatalf("expected 2, got %v", val.Export())
+	if rt.Output().Int() != 2 {
+		t.Fatalf("expected 2, got %v", rt.Output().Raw())
 	}
 }
 
@@ -416,7 +403,7 @@ func TestExecute_TimeoutRecovery(t *testing.T) {
 
 func TestExecute_ScriptError_Type(t *testing.T) {
 	rt := New()
-	_, err := rt.Execute(`throw new Error("test error")`)
+	err := rt.Execute(`throw new Error("test error")`)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -451,7 +438,7 @@ func TestExecuteFile_ScriptError_HasFilename(t *testing.T) {
 	}
 
 	rt := New()
-	_, err := rt.ExecuteFile(path)
+	err := rt.ExecuteFile(path)
 	if err == nil {
 		t.Fatal("expected error")
 	}

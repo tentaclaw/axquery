@@ -1184,23 +1184,35 @@ git commit -m "feat(axquery): add JS error handling and console bridge"
 
 ---
 
-### Task 18: 脚本执行器
+### Task 18: 脚本执行器 ✅
+
+**实际实现：Engine-agnostic Executor 抽象**
+
+与原始计划不同，Task 18 被重新定义为创建引擎无关的公共 API 抽象层，而非简单的执行器封装。
 
 **Files:**
-- Create: `js/executor.go`
-- Create: `js/executor_test.go`
+- Create: `executor.go` — `Executor` 接口 + `SystemBridge` 接口（从 js 包提升）
+- Create: `result.go` — `Result` 类型 + `ResultType` 枚举 + 类型安全访问器
+- Create: `result_test.go` — Result 全方法单测
+- Modified: `js/runtime.go` — 实现 `axquery.Executor`，Execute 返回 error，Output 返回 *Result
+- Modified: `js/globals.go` — $output 不再持有 goja.Object 引用
+- Modified: `js/runtime_test.go` — 迁移到新 API
+- Modified: `js/globals_test.go` — 迁移到新 API
+- Modified: `js/bridge_test.go` — 迁移到新 API
 
-实现:
-- `ExecuteFile(path string) (map[string]interface{}, error)` — 加载 .js 文件执行
-- `Execute(script string) (map[string]interface{}, error)` — 直接执行字符串
-- 返回值: $output 对象内容
-- 超时控制: context + goja.Interrupt
-- 输入参数: 通过 $input 传入
+**核心变更：**
+1. 根包定义 `Executor` 接口（Execute/ExecuteFile/SetApp/SetInput/SetEnv/Output/Reset）
+2. 根包定义 `SystemBridge` 接口（ClipboardRead/Write/KeyPress/TypeText）
+3. 根包定义 `Result` 类型（NewResult/Type/IsNil/String/Int/Float/Bool/Slice/StringSlice/Map/Raw）
+4. `js.Runtime` 实现 `axquery.Executor`（编译期断言）
+5. `Execute()` 签名从 `(goja.Value, error)` 改为 `error`
+6. `Output()` 签名从 `map[string]interface{}` 改为 `*axquery.Result`
+7. 所有测试迁移到新 API（不再依赖 goja.Value）
 
 **Commit:**
 ```
 git add -A
-git commit -m "feat(axquery): add script executor with timeout and I/O"
+git commit -m "feat(axquery): add Executor interface and Result type, hide goja from public API"
 ```
 
 ---
@@ -1275,9 +1287,9 @@ git commit -m "docs(axquery): add README with examples"
 |-------|-------|---------|------|
 | 1: 脚手架+选择器 | Task 1-4 | 2-3 hours | ✅ 完成 |
 | 2: Selection 核心 | Task 5-13 | 4-6 hours | ✅ 完成 |
-| 3: JS 运行时 | Task 14-18 | 3-4 hours | 🔄 进行中 (3/5) |
+| 3: JS 运行时 | Task 14-18 | 3-4 hours | ✅ 完成 |
 | 4: 集成测试+文档 | Task 19-20 | 1-2 hours | ⬜ 未开始 |
-| **总计** | **20 Tasks** | **~10-15 hours** | **16/20 完成** |
+| **总计** | **20 Tasks** | **~10-15 hours** | **18/20 完成** |
 
 ## 依赖关系
 

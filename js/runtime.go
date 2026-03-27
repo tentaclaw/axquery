@@ -11,7 +11,11 @@ import (
 
 	"github.com/dop251/goja"
 	"github.com/tentaclaw/ax"
+	"github.com/tentaclaw/axquery"
 )
+
+// Compile-time check: Runtime implements axquery.Executor.
+var _ axquery.Executor = (*Runtime)(nil)
 
 // ---------------------------------------------------------------------------
 // ScriptError — structured error from JS execution
@@ -37,15 +41,6 @@ func (e *ScriptError) Unwrap() error { return e.Wrapped }
 // RuntimeOption — functional options
 // ---------------------------------------------------------------------------
 
-// SystemBridge abstracts OS-level operations (clipboard, keyboard) so that
-// tests can inject fakes without touching the real system.
-type SystemBridge interface {
-	ClipboardRead() (string, error)
-	ClipboardWrite(text string) error
-	KeyPress(key string, mods ...ax.Modifier) error
-	TypeText(text string) error
-}
-
 // defaultBridge delegates to the ax package functions.
 type defaultBridge struct{}
 
@@ -63,7 +58,7 @@ type runtimeConfig struct {
 	timeout time.Duration
 	onLog   func(level, msg string)
 	onError func(err error)
-	bridge  SystemBridge
+	bridge  axquery.SystemBridge
 }
 
 // WithTimeout sets the maximum execution time for each Execute/ExecuteFile call.
@@ -85,7 +80,7 @@ func WithOnError(fn func(err error)) RuntimeOption {
 
 // WithBridge sets the system bridge for clipboard/keyboard operations.
 // If not set, a default bridge that delegates to the ax package is used.
-func WithBridge(b SystemBridge) RuntimeOption {
+func WithBridge(b axquery.SystemBridge) RuntimeOption {
 	return func(c *runtimeConfig) { c.bridge = b }
 }
 
@@ -95,13 +90,12 @@ func WithBridge(b SystemBridge) RuntimeOption {
 
 // Runtime manages a goja JavaScript VM with axquery bindings.
 type Runtime struct {
-	vm        *goja.Runtime
-	app       *ax.Application
-	conf      runtimeConfig
-	bridge    SystemBridge
-	env       map[string]string      // $env
-	input     map[string]interface{} // $input
-	outputObj *goja.Object           // $output (JS-side writable)
+	vm     *goja.Runtime
+	app    *ax.Application
+	conf   runtimeConfig
+	bridge axquery.SystemBridge
+	env    map[string]string // $env
+	input  map[string]any    // $input
 }
 
 // New creates a new JavaScript runtime with the given options.
@@ -135,21 +129,20 @@ func (r *Runtime) SetEnv(env map[string]string) {
 }
 
 // SetInput sets the input parameters accessible as $input in JS.
-func (r *Runtime) SetInput(input map[string]interface{}) {
+func (r *Runtime) SetInput(input map[string]any) {
 	r.input = input
 	r.injectInput()
 }
 
-// Output returns the current $output object contents as a Go map.
-func (r *Runtime) Output() map[string]interface{} {
-	if r.outputObj == nil {
-		return nil
+// Output returns the value of the $output variable after script execution,
+// wrapped as an *axquery.Result. If $output is undefined/null, the Result
+// wraps nil.
+func (r *Runtime) Output() *axquery.Result {
+	v := r.vm.Get("$output")
+	if v == nil || goja.IsUndefined(v) || goja.IsNull(v) {
+		return axquery.NewResult(nil)
 	}
-	exported := r.outputObj.Export()
-	if m, ok := exported.(map[string]interface{}); ok {
-		return m
-	}
-	return nil
+	return axquery.NewResult(v.Export())
 }
 
 // Reset discards the current VM state and creates a fresh goja runtime.
@@ -159,22 +152,23 @@ func (r *Runtime) Reset() {
 	r.injectGlobals()
 }
 
-// Execute runs a JavaScript string and returns the result.
-func (r *Runtime) Execute(script string) (goja.Value, error) {
+// Execute runs a JavaScript string. The script can set $output to communicate
+// results back to Go (readable via Output()).
+func (r *Runtime) Execute(script string) error {
 	return r.execute(script, "")
 }
 
 // ExecuteFile reads a .js file and executes its contents.
-func (r *Runtime) ExecuteFile(path string) (goja.Value, error) {
+func (r *Runtime) ExecuteFile(path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read script file: %w", err)
+		return fmt.Errorf("read script file: %w", err)
 	}
 	return r.execute(string(data), path)
 }
 
 // execute is the shared implementation for Execute and ExecuteFile.
-func (r *Runtime) execute(script, filename string) (goja.Value, error) {
+func (r *Runtime) execute(script, filename string) error {
 	// Set up timeout if configured.
 	if r.conf.timeout > 0 {
 		timer := time.AfterFunc(r.conf.timeout, func() {
@@ -186,11 +180,11 @@ func (r *Runtime) execute(script, filename string) (goja.Value, error) {
 		}()
 	}
 
-	val, err := r.vm.RunString(script)
+	_, err := r.vm.RunString(script)
 	if err != nil {
-		return nil, r.wrapError(err, filename)
+		return r.wrapError(err, filename)
 	}
-	return val, nil
+	return nil
 }
 
 // wrapError converts a goja error into a ScriptError.

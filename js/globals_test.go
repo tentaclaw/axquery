@@ -18,7 +18,7 @@ func TestDollarLog_CallsOnLog(t *testing.T) {
 	rt := New(WithOnLog(func(level, msg string) {
 		logs = append(logs, level+":"+msg)
 	}))
-	_, err := rt.Execute(`$log("hello from JS")`)
+	err := rt.Execute(`$log("hello from JS")`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
@@ -32,7 +32,7 @@ func TestDollarLog_CallsOnLog(t *testing.T) {
 
 func TestDollarLog_WithoutCallback_NoPanic(t *testing.T) {
 	rt := New() // no onLog callback
-	_, err := rt.Execute(`$log("silent")`)
+	err := rt.Execute(`$log("silent")`)
 	if err != nil {
 		t.Fatalf("$log without callback should not error: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestDollarLog_MultipleArgs(t *testing.T) {
 	rt := New(WithOnLog(func(level, msg string) {
 		logs = append(logs, msg)
 	}))
-	_, err := rt.Execute(`$log("a", "b", "c")`)
+	err := rt.Execute(`$log("a", "b", "c")`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestDollarLog_MultipleArgs(t *testing.T) {
 func TestDollarDelay_Sleeps(t *testing.T) {
 	rt := New()
 	start := time.Now()
-	_, err := rt.Execute(`$delay(50)`)
+	err := rt.Execute(`$delay(50)`)
 	elapsed := time.Since(start)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
@@ -74,7 +74,7 @@ func TestDollarDelay_Sleeps(t *testing.T) {
 
 func TestDollarDelay_ZeroMs(t *testing.T) {
 	rt := New()
-	_, err := rt.Execute(`$delay(0)`)
+	err := rt.Execute(`$delay(0)`)
 	if err != nil {
 		t.Fatalf("$delay(0) should not error: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestConsoleLog_CallsOnLog(t *testing.T) {
 	rt := New(WithOnLog(func(level, msg string) {
 		logs = append(logs, level+":"+msg)
 	}))
-	_, err := rt.Execute(`console.log("info msg")`)
+	err := rt.Execute(`console.log("info msg")`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestConsoleWarn_CallsOnLog(t *testing.T) {
 	rt := New(WithOnLog(func(level, msg string) {
 		logs = append(logs, level+":"+msg)
 	}))
-	_, err := rt.Execute(`console.warn("warn msg")`)
+	err := rt.Execute(`console.warn("warn msg")`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestConsoleError_CallsOnLog(t *testing.T) {
 	rt := New(WithOnLog(func(level, msg string) {
 		logs = append(logs, level+":"+msg)
 	}))
-	_, err := rt.Execute(`console.error("err msg")`)
+	err := rt.Execute(`console.error("err msg")`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestConsoleLog_MultipleArgs(t *testing.T) {
 	rt := New(WithOnLog(func(level, msg string) {
 		logs = append(logs, msg)
 	}))
-	_, err := rt.Execute(`console.log("x", 42, true)`)
+	err := rt.Execute(`console.log("x", 42, true)`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestConsoleLog_MultipleArgs(t *testing.T) {
 
 func TestConsoleLog_WithoutCallback_NoPanic(t *testing.T) {
 	rt := New()
-	_, err := rt.Execute(`console.log("silent")`)
+	err := rt.Execute(`console.log("silent")`)
 	if err != nil {
 		t.Fatalf("console.log without callback should not error: %v", err)
 	}
@@ -155,23 +155,23 @@ func TestConsoleLog_WithoutCallback_NoPanic(t *testing.T) {
 func TestDollarEnv_ReadValue(t *testing.T) {
 	rt := New()
 	rt.SetEnv(map[string]string{"FOO": "bar"})
-	val, err := rt.Execute(`$env.FOO`)
+	err := rt.Execute(`$output = $env.FOO`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	if val.Export().(string) != "bar" {
-		t.Fatalf("expected 'bar', got %v", val.Export())
+	if rt.Output().String() != "bar" {
+		t.Fatalf("expected 'bar', got %v", rt.Output().Raw())
 	}
 }
 
 func TestDollarEnv_DefaultEmpty(t *testing.T) {
 	rt := New()
-	val, err := rt.Execute(`typeof $env`)
+	err := rt.Execute(`$output = typeof $env`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	if val.Export().(string) != "object" {
-		t.Fatalf("expected $env to be an object, got %v", val.Export())
+	if rt.Output().String() != "object" {
+		t.Fatalf("expected $env to be an object, got %v", rt.Output().Raw())
 	}
 }
 
@@ -181,23 +181,23 @@ func TestDollarEnv_DefaultEmpty(t *testing.T) {
 
 func TestDollarInput_ReadValue(t *testing.T) {
 	rt := New()
-	rt.SetInput(map[string]interface{}{"name": "test", "count": 42})
-	val, err := rt.Execute(`$input.name + ":" + $input.count`)
+	rt.SetInput(map[string]any{"name": "test", "count": 42})
+	err := rt.Execute(`$output = $input.name + ":" + $input.count`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	if val.Export().(string) != "test:42" {
-		t.Fatalf("expected 'test:42', got %v", val.Export())
+	if rt.Output().String() != "test:42" {
+		t.Fatalf("expected 'test:42', got %v", rt.Output().Raw())
 	}
 }
 
 func TestDollarOutput_WriteAndRead(t *testing.T) {
 	rt := New()
-	_, err := rt.Execute(`$output.result = "done"; $output.code = 0;`)
+	err := rt.Execute(`$output.result = "done"; $output.code = 0;`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	out := rt.Output()
+	out := rt.Output().Map()
 	if out["result"] != "done" {
 		t.Fatalf("expected output.result='done', got %v", out["result"])
 	}
@@ -222,12 +222,12 @@ func TestDollarOutput_WriteAndRead(t *testing.T) {
 
 func TestDollarOutput_DefaultEmpty(t *testing.T) {
 	rt := New()
-	val, err := rt.Execute(`typeof $output`)
+	err := rt.Execute(`$output = typeof $output`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	if val.Export().(string) != "object" {
-		t.Fatalf("expected $output to be an object, got %v", val.Export())
+	if rt.Output().String() != "object" {
+		t.Fatalf("expected $output to be an object, got %v", rt.Output().Raw())
 	}
 }
 
@@ -274,19 +274,19 @@ func (f *fakeBridge) TypeText(text string) error {
 func TestDollarClipboard_Read_ReturnsContent(t *testing.T) {
 	fb := &fakeBridge{clipboardContent: "from clipboard"}
 	rt := New(WithBridge(fb))
-	val, err := rt.Execute(`$clipboard.read()`)
+	err := rt.Execute(`$output = $clipboard.read()`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	if val.Export().(string) != "from clipboard" {
-		t.Fatalf("expected 'from clipboard', got %v", val.Export())
+	if rt.Output().String() != "from clipboard" {
+		t.Fatalf("expected 'from clipboard', got %v", rt.Output().Raw())
 	}
 }
 
 func TestDollarClipboard_Read_Error(t *testing.T) {
 	fb := &fakeBridge{clipboardReadErr: fmt.Errorf("no pasteboard")}
 	rt := New(WithBridge(fb))
-	_, err := rt.Execute(`$clipboard.read()`)
+	err := rt.Execute(`$clipboard.read()`)
 	if err == nil {
 		t.Fatal("expected error from $clipboard.read(), got nil")
 	}
@@ -295,7 +295,7 @@ func TestDollarClipboard_Read_Error(t *testing.T) {
 func TestDollarClipboard_Write_CallsBridge(t *testing.T) {
 	fb := &fakeBridge{}
 	rt := New(WithBridge(fb))
-	_, err := rt.Execute(`$clipboard.write("hello JS")`)
+	err := rt.Execute(`$clipboard.write("hello JS")`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
@@ -307,7 +307,7 @@ func TestDollarClipboard_Write_CallsBridge(t *testing.T) {
 func TestDollarClipboard_Write_Error(t *testing.T) {
 	fb := &fakeBridge{clipboardWriteErr: fmt.Errorf("write failed")}
 	rt := New(WithBridge(fb))
-	_, err := rt.Execute(`$clipboard.write("x")`)
+	err := rt.Execute(`$clipboard.write("x")`)
 	if err == nil {
 		t.Fatal("expected error from $clipboard.write(), got nil")
 	}
@@ -320,7 +320,7 @@ func TestDollarClipboard_Write_Error(t *testing.T) {
 func TestDollarKeyboard_Press_CallsBridge(t *testing.T) {
 	fb := &fakeBridge{}
 	rt := New(WithBridge(fb))
-	_, err := rt.Execute(`$keyboard.press("a")`)
+	err := rt.Execute(`$keyboard.press("a")`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
@@ -338,7 +338,7 @@ func TestDollarKeyboard_Press_CallsBridge(t *testing.T) {
 func TestDollarKeyboard_Press_WithModifiers(t *testing.T) {
 	fb := &fakeBridge{}
 	rt := New(WithBridge(fb))
-	_, err := rt.Execute(`$keyboard.press("c", "command")`)
+	err := rt.Execute(`$keyboard.press("c", "command")`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
@@ -356,7 +356,7 @@ func TestDollarKeyboard_Press_WithModifiers(t *testing.T) {
 func TestDollarKeyboard_Press_Error(t *testing.T) {
 	fb := &fakeBridge{keyPressErr: fmt.Errorf("key failed")}
 	rt := New(WithBridge(fb))
-	_, err := rt.Execute(`$keyboard.press("a")`)
+	err := rt.Execute(`$keyboard.press("a")`)
 	if err == nil {
 		t.Fatal("expected error from $keyboard.press(), got nil")
 	}
@@ -365,7 +365,7 @@ func TestDollarKeyboard_Press_Error(t *testing.T) {
 func TestDollarKeyboard_Type_CallsBridge(t *testing.T) {
 	fb := &fakeBridge{}
 	rt := New(WithBridge(fb))
-	_, err := rt.Execute(`$keyboard.type("hello world")`)
+	err := rt.Execute(`$keyboard.type("hello world")`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
@@ -377,7 +377,7 @@ func TestDollarKeyboard_Type_CallsBridge(t *testing.T) {
 func TestDollarKeyboard_Type_Error(t *testing.T) {
 	fb := &fakeBridge{typeTextErr: fmt.Errorf("type failed")}
 	rt := New(WithBridge(fb))
-	_, err := rt.Execute(`$keyboard.type("x")`)
+	err := rt.Execute(`$keyboard.type("x")`)
 	if err == nil {
 		t.Fatal("expected error from $keyboard.type(), got nil")
 	}
@@ -389,18 +389,18 @@ func TestDollarKeyboard_Type_Error(t *testing.T) {
 
 func TestDollarAx_IsFunction(t *testing.T) {
 	rt := New()
-	val, err := rt.Execute(`typeof $ax`)
+	err := rt.Execute(`$output = typeof $ax`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	if val.Export().(string) != "function" {
-		t.Fatalf("expected $ax to be a function, got %v", val.Export())
+	if rt.Output().String() != "function" {
+		t.Fatalf("expected $ax to be a function, got %v", rt.Output().Raw())
 	}
 }
 
 func TestDollarAx_WithoutApp_ReturnsError(t *testing.T) {
 	rt := New() // no app set
-	_, err := rt.Execute(`$ax("AXButton")`)
+	err := rt.Execute(`$ax("AXButton")`)
 	if err == nil {
 		t.Fatal("expected error when $ax called without app, got nil")
 	}
@@ -415,12 +415,12 @@ func TestDollarAx_WithoutApp_ReturnsError(t *testing.T) {
 
 func TestDollarApp_IsFunction(t *testing.T) {
 	rt := New()
-	val, err := rt.Execute(`typeof $app`)
+	err := rt.Execute(`$output = typeof $app`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	if val.Export().(string) != "function" {
-		t.Fatalf("expected $app to be a function, got %v", val.Export())
+	if rt.Output().String() != "function" {
+		t.Fatalf("expected $app to be a function, got %v", rt.Output().Raw())
 	}
 }
 
@@ -433,14 +433,14 @@ func TestGlobals_SurviveReset(t *testing.T) {
 	rt := New(WithOnLog(func(level, msg string) {
 		logs = append(logs, msg)
 	}))
-	_, err := rt.Execute(`$log("before reset")`)
+	err := rt.Execute(`$log("before reset")`)
 	if err != nil {
 		t.Fatalf("before reset: %v", err)
 	}
 
 	rt.Reset()
 
-	_, err = rt.Execute(`$log("after reset")`)
+	err = rt.Execute(`$log("after reset")`)
 	if err != nil {
 		t.Fatalf("after reset: %v", err)
 	}
@@ -456,7 +456,7 @@ func TestGlobals_ConsoleAfterReset(t *testing.T) {
 		logs = append(logs, level+":"+msg)
 	}))
 	rt.Reset()
-	_, err := rt.Execute(`console.log("post-reset")`)
+	err := rt.Execute(`console.log("post-reset")`)
 	if err != nil {
 		t.Fatalf("console after reset: %v", err)
 	}
@@ -472,21 +472,21 @@ func TestGlobals_ConsoleAfterReset(t *testing.T) {
 func TestSetEnv_UpdatesGlobal(t *testing.T) {
 	rt := New()
 	rt.SetEnv(map[string]string{"A": "1"})
-	val, err := rt.Execute(`$env.A`)
+	err := rt.Execute(`$output = $env.A`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if val.Export().(string) != "1" {
-		t.Fatalf("expected '1', got %v", val.Export())
+	if rt.Output().String() != "1" {
+		t.Fatalf("expected '1', got %v", rt.Output().Raw())
 	}
 
 	rt.SetEnv(map[string]string{"A": "2"})
-	val, err = rt.Execute(`$env.A`)
+	err = rt.Execute(`$output = $env.A`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if val.Export().(string) != "2" {
-		t.Fatalf("expected '2' after SetEnv, got %v", val.Export())
+	if rt.Output().String() != "2" {
+		t.Fatalf("expected '2' after SetEnv, got %v", rt.Output().Raw())
 	}
 }
 
@@ -522,16 +522,55 @@ func TestParseModifier_AllCases(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Output — nil outputObj path
+// Output — nil/undefined $output path
 // ---------------------------------------------------------------------------
 
-func TestOutput_NilOutputObj(t *testing.T) {
+func TestOutput_UndefinedOutput(t *testing.T) {
 	rt := New()
-	// Forcefully nil out the output object to test nil guard.
-	rt.outputObj = nil
+	// Overwrite $output to undefined
+	err := rt.Execute(`$output = undefined`)
+	if err != nil {
+		t.Fatal(err)
+	}
 	out := rt.Output()
-	if out != nil {
-		t.Fatalf("expected nil output, got %v", out)
+	if !out.IsNil() {
+		t.Fatalf("expected nil result for undefined $output, got %v", out.Raw())
+	}
+}
+
+func TestOutput_NullOutput(t *testing.T) {
+	rt := New()
+	err := rt.Execute(`$output = null`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := rt.Output()
+	if !out.IsNil() {
+		t.Fatalf("expected nil result for null $output, got %v", out.Raw())
+	}
+}
+
+func TestOutput_ReturnsResult(t *testing.T) {
+	rt := New()
+	err := rt.Execute(`$output = 42`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := rt.Output()
+	if out.Int() != 42 {
+		t.Fatalf("expected 42, got %v", out.Raw())
+	}
+}
+
+func TestOutput_ReturnsStringResult(t *testing.T) {
+	rt := New()
+	err := rt.Execute(`$output = "hello"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := rt.Output()
+	if out.String() != "hello" {
+		t.Fatalf("expected 'hello', got %v", out.Raw())
 	}
 }
 
@@ -551,12 +590,12 @@ func TestDollarAx_WithApp_ReturnsObject(t *testing.T) {
 
 	rt := New()
 	rt.SetApp(app)
-	val, err := rt.Execute(`var s = $ax("AXButton"); typeof s`)
+	err = rt.Execute(`$output = typeof $ax("AXButton")`)
 	if err != nil {
 		t.Fatalf("$ax with app error: %v", err)
 	}
-	if val.Export().(string) != "object" {
-		t.Fatalf("expected object, got %v", val.Export())
+	if rt.Output().String() != "object" {
+		t.Fatalf("expected object, got %v", rt.Output().Raw())
 	}
 }
 
@@ -572,11 +611,11 @@ func TestDollarAx_WrapSelection_Count(t *testing.T) {
 
 	rt := New()
 	rt.SetApp(app)
-	val, err := rt.Execute(`$ax("AXButton").count()`)
+	err = rt.Execute(`$output = $ax("AXButton").count()`)
 	if err != nil {
 		t.Fatalf("$ax count error: %v", err)
 	}
-	count := val.ToInteger()
+	count := rt.Output().Int()
 	t.Logf("Finder buttons via $ax: %d", count)
 }
 
@@ -593,11 +632,11 @@ func TestDollarAx_WrapSelection_IsEmpty(t *testing.T) {
 	rt := New()
 	rt.SetApp(app)
 	// Query something unlikely to exist
-	val, err := rt.Execute(`$ax("AXButton[title='__nonexistent_12345__']").isEmpty()`)
+	err = rt.Execute(`$output = $ax("AXButton[title='__nonexistent_12345__']").isEmpty()`)
 	if err != nil {
 		t.Fatalf("$ax isEmpty error: %v", err)
 	}
-	if val.ToBoolean() != true {
+	if rt.Output().Bool() != true {
 		t.Fatal("expected isEmpty() to be true for nonexistent selector")
 	}
 }
@@ -614,13 +653,13 @@ func TestDollarAx_WrapSelection_Err(t *testing.T) {
 
 	rt := New()
 	rt.SetApp(app)
-	val, err := rt.Execute(`$ax("AXButton").err()`)
+	err = rt.Execute(`$output = $ax("AXButton").err()`)
 	if err != nil {
 		t.Fatalf("$ax err() error: %v", err)
 	}
 	// Successful query should return null (no error).
-	if val.Export() != nil {
-		t.Logf("err() returned: %v (may be expected for some selectors)", val.Export())
+	if !rt.Output().IsNil() {
+		t.Logf("err() returned: %v (may be expected for some selectors)", rt.Output().Raw())
 	}
 }
 
@@ -633,23 +672,23 @@ func TestDollarApp_SwitchToFinder(t *testing.T) {
 		t.Skip("no AX permission")
 	}
 	rt := New()
-	_, err := rt.Execute(`$app("com.apple.finder")`)
+	err := rt.Execute(`$app("com.apple.finder")`)
 	if err != nil {
 		t.Fatalf("$app('com.apple.finder') error: %v", err)
 	}
 	// After $app, $ax should work.
-	val, err := rt.Execute(`typeof $ax("AXWindow")`)
+	err = rt.Execute(`$output = typeof $ax("AXWindow")`)
 	if err != nil {
 		t.Fatalf("$ax after $app error: %v", err)
 	}
-	if val.Export().(string) != "object" {
-		t.Fatalf("expected object from $ax, got %v", val.Export())
+	if rt.Output().String() != "object" {
+		t.Fatalf("expected object from $ax, got %v", rt.Output().Raw())
 	}
 }
 
 func TestDollarApp_EmptyArg_Error(t *testing.T) {
 	rt := New()
-	_, err := rt.Execute(`$app("")`)
+	err := rt.Execute(`$app("")`)
 	if err == nil {
 		t.Fatal("expected error from $app(''), got nil")
 	}
@@ -657,7 +696,7 @@ func TestDollarApp_EmptyArg_Error(t *testing.T) {
 
 func TestDollarApp_InvalidApp_Error(t *testing.T) {
 	rt := New()
-	_, err := rt.Execute(`$app("com.nonexistent.app.12345")`)
+	err := rt.Execute(`$app("com.nonexistent.app.12345")`)
 	if err == nil {
 		t.Fatal("expected error from $app with invalid bundle ID, got nil")
 	}
@@ -669,22 +708,22 @@ func TestDollarApp_InvalidApp_Error(t *testing.T) {
 
 func TestDollarAx_Defaults_Exists(t *testing.T) {
 	rt := New()
-	val, err := rt.Execute(`typeof $ax.defaults`)
+	err := rt.Execute(`$output = typeof $ax.defaults`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	if val.Export().(string) != "object" {
-		t.Fatalf("expected $ax.defaults to be an object, got %v", val.Export())
+	if rt.Output().String() != "object" {
+		t.Fatalf("expected $ax.defaults to be an object, got %v", rt.Output().Raw())
 	}
 }
 
 func TestDollarAx_Defaults_HasTimeout(t *testing.T) {
 	rt := New()
-	val, err := rt.Execute(`$ax.defaults.timeout`)
+	err := rt.Execute(`$output = $ax.defaults.timeout`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	timeout := val.ToInteger()
+	timeout := rt.Output().Int()
 	if timeout != 5000 {
 		t.Fatalf("expected default timeout=5000, got %d", timeout)
 	}
@@ -692,11 +731,11 @@ func TestDollarAx_Defaults_HasTimeout(t *testing.T) {
 
 func TestDollarAx_Defaults_HasPollInterval(t *testing.T) {
 	rt := New()
-	val, err := rt.Execute(`$ax.defaults.pollInterval`)
+	err := rt.Execute(`$output = $ax.defaults.pollInterval`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	interval := val.ToInteger()
+	interval := rt.Output().Int()
 	if interval != 200 {
 		t.Fatalf("expected default pollInterval=200, got %d", interval)
 	}
@@ -704,16 +743,16 @@ func TestDollarAx_Defaults_HasPollInterval(t *testing.T) {
 
 func TestDollarAx_Defaults_Writable(t *testing.T) {
 	rt := New()
-	_, err := rt.Execute(`$ax.defaults.timeout = 10000`)
+	err := rt.Execute(`$ax.defaults.timeout = 10000`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	val, err := rt.Execute(`$ax.defaults.timeout`)
+	err = rt.Execute(`$output = $ax.defaults.timeout`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	if val.ToInteger() != 10000 {
-		t.Fatalf("expected timeout=10000 after write, got %d", val.ToInteger())
+	if rt.Output().Int() != 10000 {
+		t.Fatalf("expected timeout=10000 after write, got %d", rt.Output().Int())
 	}
 }
 
@@ -721,30 +760,30 @@ func TestDollarAx_Defaults_SurvivesReset(t *testing.T) {
 	rt := New()
 	// Defaults should be re-injected after Reset.
 	rt.Reset()
-	val, err := rt.Execute(`$ax.defaults.timeout`)
+	err := rt.Execute(`$output = $ax.defaults.timeout`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
-	if val.ToInteger() != 5000 {
-		t.Fatalf("expected default timeout=5000 after Reset, got %d", val.ToInteger())
+	if rt.Output().Int() != 5000 {
+		t.Fatalf("expected default timeout=5000 after Reset, got %d", rt.Output().Int())
 	}
 }
 
 func TestDollarAx_StillCallable(t *testing.T) {
 	// $ax should still be callable as a function after adding .defaults property.
 	rt := New()
-	val, err := rt.Execute(`typeof $ax`)
+	err := rt.Execute(`$output = typeof $ax`)
 	if err != nil {
 		t.Fatalf("Execute error: %v", err)
 	}
 	// $ax might be a function or an object with [[Call]] — either is fine,
 	// but it must be callable.
-	typ := val.Export().(string)
+	typ := rt.Output().String()
 	if typ != "function" && typ != "object" {
 		t.Fatalf("expected $ax to be function or object, got %v", typ)
 	}
 	// Should still error when called without app.
-	_, err = rt.Execute(`$ax("AXButton")`)
+	err = rt.Execute(`$ax("AXButton")`)
 	if err == nil {
 		t.Fatal("expected error from $ax without app")
 	}

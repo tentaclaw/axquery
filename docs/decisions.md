@@ -1,6 +1,6 @@
 # 决策记录
 
-> 最后更新：2026-03-27（Task 17 完成后）
+> 最后更新：2026-03-27（Task 18 完成后）
 
 ## 1. 已确认决策
 
@@ -103,6 +103,14 @@
 | 95 | **`.err()` 返回结构化对象** | `.err()` 返回与 throw 相同 shape 的结构化对象（非字符串），无错误时返回 `null`；JS 侧可直接 `if (sel.err()) { ... sel.err().code ... }` | 2026-03-27 |
 | 96 | **`$ax.defaults` 可写配置对象** | `$ax.defaults = {timeout: 5000, pollInterval: 200}`，JS 侧可修改；通过 `injectAx()` 在 New/Reset 中注入；`$ax` 保持可调用同时挂载 `.defaults` 属性 | 2026-03-27 |
 | 97 | **console 已在 Task 15 实现** | console.log/warn/error 在 Task 15 的 globals 注入中已完成，复用 `emitLog` 路径；Task 17 不重复实现 | 2026-03-27 |
+| 98 | **Executor 接口定义在根包** | `axquery.Executor` 接口定义在根包，`js.Runtime` 实现它；app 层仅依赖接口，不导入 `js` 包内部类型；根包不能导入 `js`（循环依赖） | 2026-03-27 |
+| 99 | **SystemBridge 接口提升到根包** | 原先在 `js` 包内部的 `SystemBridge` 接口迁移到 `axquery` 根包，使其成为公共契约；`js.Runtime` 使用 `axquery.SystemBridge` 类型 | 2026-03-27 |
+| 100 | **Execute 仅返回 error** | `Execute(script) error` 不再返回 `goja.Value`；脚本通过 `$output` 传递结果，Go 侧通过 `Output()` 读取；消除公开 API 对 goja 类型的依赖 | 2026-03-27 |
+| 101 | **Output() 返回 *Result** | `Output()` 返回结构化的 `*axquery.Result`（非 `any` 或 `map[string]interface{}`）；Result 提供类型安全的访问器（String/Int/Float/Bool/Slice/Map/Raw） | 2026-03-27 |
+| 102 | **Result 使用 goja.Export() 转换** | `Output()` 通过 `r.vm.Get("$output").Export()` 将 goja 值转为原生 Go 类型，再包装为 `*axquery.Result`；goja 的 Export 自动将 JS object→map、array→slice、number→int64/float64 | 2026-03-27 |
+| 103 | **$output 重新初始化方式** | `injectOutput()` 不再保存 `*goja.Object` 引用，直接 `r.vm.Set("$output", r.vm.NewObject())`；脚本可以赋值标量（`$output = 42`）或保持对象写法（`$output.foo = "bar"`） | 2026-03-27 |
+| 104 | **ResultType 枚举** | Result.Type() 返回 ResultType 枚举（Nil/String/Int/Float/Bool/Slice/Map），方便 switch 分发；未知类型映射到 ResultNil | 2026-03-27 |
+| 105 | **编译期接口断言** | `js/runtime.go` 中 `var _ axquery.Executor = (*Runtime)(nil)` 确保 `Runtime` 始终实现 `Executor` 接口；编译不过则立即暴露 | 2026-03-27 |
 
 ## 2. 关键发现
 
@@ -230,7 +238,7 @@ rootResolver（根节点获取接口）
 - [x] axquery 包：等待方法（WaitUntil/WaitGone/WaitVisible/WaitEnabled）— Task 12, 95.5% coverage
 - [x] axquery 包：滚动方法（ScrollIntoView/ScrollDown/ScrollUp）— Task 13, 95.1% coverage
 - [x] axquery 包：goja JS 运行时脚手架（Runtime/Execute/ExecuteFile）— Task 14, 95.8% coverage
-- [ ] axquery 包：JS 全局函数注入（$ax/$app/$delay/$log）— Task 15, next
+- [ ] axquery 包：JS 全局函数注入（$ax/$app/$delay/$log）— Task 15, ✅ 完成
 
 ### Phase 2: 应用层（app 基础）
 - [ ] app：Wails v3 项目初始化

@@ -14,16 +14,19 @@ import (
 // ---------------------------------------------------------------------------
 
 // evalWithSelection creates a Runtime, injects a Selection via Go, then runs JS against it.
+// The JS script should assign its result to $output. The helper returns the exported value.
 func evalWithSelection(t *testing.T, sel *axquery.Selection, js string) interface{} {
 	t.Helper()
 	rt := New(WithBridge(&fakeBridge{}))
 	// Inject the selection as a global variable for testing.
 	rt.vm.Set("sel", rt.wrapSelection(sel))
-	val, err := rt.Execute(js)
+	// Wrap the JS in $output assignment if it doesn't already assign to $output.
+	script := "$output = " + js
+	err := rt.Execute(script)
 	if err != nil {
 		t.Fatalf("Execute(%q): %v", js, err)
 	}
-	return val.Export()
+	return rt.Output().Raw()
 }
 
 // evalWithSelectionErr is like evalWithSelection but expects an error.
@@ -31,8 +34,7 @@ func evalWithSelectionErr(t *testing.T, sel *axquery.Selection, js string) error
 	t.Helper()
 	rt := New(WithBridge(&fakeBridge{}))
 	rt.vm.Set("sel", rt.wrapSelection(sel))
-	_, err := rt.Execute(js)
-	return err
+	return rt.Execute(js)
 }
 
 // ---------------------------------------------------------------------------
@@ -59,11 +61,11 @@ func TestBridge_Count_NonEmpty(t *testing.T) {
 
 	rt := New(WithBridge(&fakeBridge{}))
 	rt.SetApp(app)
-	val, err := rt.Execute(`$ax("AXButton").count()`)
+	err = rt.Execute(`$output = $ax("AXButton").count()`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	count := val.ToInteger()
+	count := rt.Output().Int()
 	if count <= 0 {
 		t.Logf("Finder returned 0 buttons (may happen with no window), count=%d", count)
 	}
@@ -89,12 +91,12 @@ func TestBridge_IsEmpty_False(t *testing.T) {
 
 	rt := New(WithBridge(&fakeBridge{}))
 	rt.SetApp(app)
-	val, err := rt.Execute(`$ax("AXWindow").isEmpty()`)
+	err = rt.Execute(`$output = $ax("AXWindow").isEmpty()`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Finder should have at least one window; but CI might not.
-	t.Logf("AXWindow isEmpty: %v", val.Export())
+	t.Logf("AXWindow isEmpty: %v", rt.Output().Raw())
 }
 
 func TestBridge_Err_NoError(t *testing.T) {
@@ -185,13 +187,13 @@ func TestBridge_Chaining_FirstCount(t *testing.T) {
 
 	rt := New(WithBridge(&fakeBridge{}))
 	rt.SetApp(app)
-	val, err := rt.Execute(`$ax("AXButton").first().count()`)
+	err = rt.Execute(`$output = $ax("AXButton").first().count()`)
 	if err != nil {
 		// May error if no buttons found
 		t.Logf("first().count() error (may be OK): %v", err)
 		return
 	}
-	count := val.ToInteger()
+	count := rt.Output().Int()
 	if count != 1 && count != 0 {
 		t.Fatalf("first().count() should be 0 or 1, got %d", count)
 	}
@@ -213,12 +215,12 @@ func TestBridge_Find_ReturnsSelection(t *testing.T) {
 
 	rt := New(WithBridge(&fakeBridge{}))
 	rt.SetApp(app)
-	val, err := rt.Execute(`$ax("AXWindow").find("AXButton").count()`)
+	err = rt.Execute(`$output = $ax("AXWindow").find("AXButton").count()`)
 	if err != nil {
 		t.Logf("find error (may be OK if no window): %v", err)
 		return
 	}
-	t.Logf("AXWindow > find(AXButton) count: %d", val.ToInteger())
+	t.Logf("AXWindow > find(AXButton) count: %d", rt.Output().Int())
 }
 
 func TestBridge_Children_ReturnsSelection(t *testing.T) {
@@ -233,12 +235,12 @@ func TestBridge_Children_ReturnsSelection(t *testing.T) {
 
 	rt := New(WithBridge(&fakeBridge{}))
 	rt.SetApp(app)
-	val, err := rt.Execute(`$ax("AXWindow").children().count()`)
+	err = rt.Execute(`$output = $ax("AXWindow").children().count()`)
 	if err != nil {
 		t.Logf("children error: %v", err)
 		return
 	}
-	t.Logf("AXWindow children count: %d", val.ToInteger())
+	t.Logf("AXWindow children count: %d", rt.Output().Int())
 }
 
 // ---------------------------------------------------------------------------
@@ -258,12 +260,12 @@ func TestBridge_Filter_ReturnsSelection(t *testing.T) {
 	rt := New(WithBridge(&fakeBridge{}))
 	rt.SetApp(app)
 	// filter("AXButton") on a set of buttons should return all of them
-	val, err := rt.Execute(`$ax("AXButton").filter("AXButton").count()`)
+	err = rt.Execute(`$output = $ax("AXButton").filter("AXButton").count()`)
 	if err != nil {
 		t.Logf("filter error: %v", err)
 		return
 	}
-	t.Logf("filter result count: %d", val.ToInteger())
+	t.Logf("filter result count: %d", rt.Output().Int())
 }
 
 func TestBridge_Is_ReturnsBool(t *testing.T) {
@@ -278,13 +280,13 @@ func TestBridge_Is_ReturnsBool(t *testing.T) {
 
 	rt := New(WithBridge(&fakeBridge{}))
 	rt.SetApp(app)
-	val, err := rt.Execute(`$ax("AXButton").is("AXButton")`)
+	err = rt.Execute(`$output = $ax("AXButton").is("AXButton")`)
 	if err != nil {
 		t.Logf("is error: %v", err)
 		return
 	}
 	// Should be true since we queried AXButton and asked is("AXButton")
-	t.Logf("is(AXButton) = %v", val.Export())
+	t.Logf("is(AXButton) = %v", rt.Output().Raw())
 }
 
 func TestBridge_Contains_ReturnsSelection(t *testing.T) {
@@ -328,12 +330,12 @@ func TestBridge_FilterFunction_Callback(t *testing.T) {
 	rt := New(WithBridge(&fakeBridge{}))
 	rt.SetApp(app)
 	// filterFunction: keep only first element
-	val, err := rt.Execute(`$ax("AXButton").filterFunction(function(i, s) { return i === 0; }).count()`)
+	err = rt.Execute(`$output = $ax("AXButton").filterFunction(function(i, s) { return i === 0; }).count()`)
 	if err != nil {
 		t.Logf("filterFunction error: %v", err)
 		return
 	}
-	count := val.ToInteger()
+	count := rt.Output().Int()
 	t.Logf("filterFunction result count: %d", count)
 	if count > 1 {
 		t.Fatalf("filterFunction(i===0) should return at most 1, got %d", count)
@@ -356,12 +358,12 @@ func TestBridge_Title_WithFinder(t *testing.T) {
 
 	rt := New(WithBridge(&fakeBridge{}))
 	rt.SetApp(app)
-	val, err := rt.Execute(`$ax("AXButton").first().title()`)
+	err = rt.Execute(`$output = $ax("AXButton").first().title()`)
 	if err != nil {
 		t.Logf("title error (may be OK): %v", err)
 		return
 	}
-	t.Logf("first button title: %q", val.Export())
+	t.Logf("first button title: %q", rt.Output().Raw())
 }
 
 func TestBridge_Role_ReturnsString(t *testing.T) {
@@ -376,12 +378,12 @@ func TestBridge_Role_ReturnsString(t *testing.T) {
 
 	rt := New(WithBridge(&fakeBridge{}))
 	rt.SetApp(app)
-	val, err := rt.Execute(`$ax("AXButton").first().role()`)
+	err = rt.Execute(`$output = $ax("AXButton").first().role()`)
 	if err != nil {
 		t.Logf("role error: %v", err)
 		return
 	}
-	role := val.Export().(string)
+	role := rt.Output().String()
 	if role != "AXButton" {
 		t.Fatalf("expected role AXButton, got %q", role)
 	}
@@ -399,12 +401,12 @@ func TestBridge_Attr_ReturnsString(t *testing.T) {
 
 	rt := New(WithBridge(&fakeBridge{}))
 	rt.SetApp(app)
-	val, err := rt.Execute(`$ax("AXWindow").first().attr("title")`)
+	err = rt.Execute(`$output = $ax("AXWindow").first().attr("title")`)
 	if err != nil {
 		t.Logf("attr error: %v", err)
 		return
 	}
-	t.Logf("window attr(title): %q", val.Export())
+	t.Logf("window attr(title): %q", rt.Output().Raw())
 }
 
 func TestBridge_AttrOr_FallbackDefault(t *testing.T) {
@@ -487,19 +489,19 @@ func TestBridge_Each_CallbackInvoked(t *testing.T) {
 
 	rt := New(WithBridge(&fakeBridge{}))
 	rt.SetApp(app)
-	val, err := rt.Execute(`
+	err = rt.Execute(`
 		var count = 0;
 		$ax("AXButton").each(function(i, s) {
 			count++;
 			if (i >= 2) return false; // break after 3
 		});
-		count;
+		$output = count;
 	`)
 	if err != nil {
 		t.Logf("each error: %v", err)
 		return
 	}
-	count := val.ToInteger()
+	count := rt.Output().Int()
 	t.Logf("each callback invoked %d times", count)
 	if count > 3 {
 		t.Fatalf("expected break at 3, got %d", count)
@@ -508,13 +510,18 @@ func TestBridge_Each_CallbackInvoked(t *testing.T) {
 
 func TestBridge_Each_EmptySelection(t *testing.T) {
 	sel := axquery.NewSelection(nil, "AXButton")
-	got := evalWithSelection(t, sel, `
+	rt := New(WithBridge(&fakeBridge{}))
+	rt.vm.Set("sel", rt.wrapSelection(sel))
+	err := rt.Execute(`
 		var count = 0;
 		sel.each(function(i, s) { count++; });
-		count;
+		$output = count;
 	`)
-	if got != int64(0) {
-		t.Fatalf("expected 0 iterations on empty, got %v", got)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
+	}
+	if rt.Output().Int() != 0 {
+		t.Fatalf("expected 0 iterations on empty, got %v", rt.Output().Raw())
 	}
 }
 
@@ -542,20 +549,25 @@ func TestBridge_Map_ReturnsArray(t *testing.T) {
 
 	rt := New(WithBridge(&fakeBridge{}))
 	rt.SetApp(app)
-	val, err := rt.Execute(`$ax("AXButton").map(function(i, s) { return s.role(); })`)
+	err = rt.Execute(`$output = $ax("AXButton").map(function(i, s) { return s.role(); })`)
 	if err != nil {
 		t.Logf("map error: %v", err)
 		return
 	}
-	exported := val.Export()
+	exported := rt.Output().Raw()
 	t.Logf("map result: %v (type=%T)", exported, exported)
 }
 
 func TestBridge_Map_EmptySelection(t *testing.T) {
 	sel := axquery.NewSelection(nil, "AXButton")
-	got := evalWithSelection(t, sel, `sel.map(function(i, s) { return "x"; }).length`)
-	if got != int64(0) {
-		t.Fatalf("expected empty array length 0, got %v", got)
+	rt := New(WithBridge(&fakeBridge{}))
+	rt.vm.Set("sel", rt.wrapSelection(sel))
+	err := rt.Execute(`$output = sel.map(function(i, s) { return "x"; }).length`)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
+	}
+	if rt.Output().Int() != 0 {
+		t.Fatalf("expected empty array length 0, got %v", rt.Output().Raw())
 	}
 }
 
@@ -770,24 +782,20 @@ func TestBridge_FullChain_Integration(t *testing.T) {
 
 	rt := New(WithBridge(&fakeBridge{}))
 	rt.SetApp(app)
-	val, err := rt.Execute(`
+	err = rt.Execute(`
 		var btns = $ax("AXButton");
 		var count = btns.count();
 		var first = btns.first();
 		var title = first.title();
 		var role = first.role();
-		$output.count = count;
-		$output.title = title;
-		$output.role = role;
-		count;
+		$output = {count: count, title: title, role: role};
 	`)
 	if err != nil {
 		t.Logf("full chain error (may be OK): %v", err)
 		return
 	}
-	t.Logf("Full chain: count=%d", val.ToInteger())
-	out := rt.Output()
-	t.Logf("Output: %v", out)
+	out := rt.Output().Map()
+	t.Logf("Full chain output: %v", out)
 }
 
 // ---------------------------------------------------------------------------
@@ -796,7 +804,6 @@ func TestBridge_FullChain_Integration(t *testing.T) {
 
 func TestBridge_ErrorSelection_Chaining(t *testing.T) {
 	sel := axquery.NewSelectionError(fmt.Errorf("broken"), "AXButton")
-	// All methods should still work on error selection
 	got := evalWithSelection(t, sel, `sel.first().last().count()`)
 	if got != int64(0) {
 		t.Fatalf("expected 0, got %v", got)
@@ -825,12 +832,12 @@ func TestBridge_ErrorSelection_MethodsReturnSelection(t *testing.T) {
 	for _, m := range methods {
 		rt := New(WithBridge(&fakeBridge{}))
 		rt.vm.Set("sel", rt.wrapSelection(sel))
-		val, err := rt.Execute(fmt.Sprintf(`typeof %s`, m))
+		err := rt.Execute(fmt.Sprintf(`$output = typeof %s`, m))
 		if err != nil {
 			t.Fatalf("%s: unexpected error: %v", m, err)
 		}
-		if val.Export().(string) != "object" {
-			t.Fatalf("%s: expected object, got %v", m, val.Export())
+		if rt.Output().String() != "object" {
+			t.Fatalf("%s: expected object, got %v", m, rt.Output().Raw())
 		}
 	}
 }
@@ -897,8 +904,6 @@ func TestBridge_Terminal_Text_ThrowsOnError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected text() to throw on error selection")
 	}
-	// The thrown object is a structured JS object; its string representation
-	// via Go error is "[object Object]". Shape is tested in StructuredError tests.
 }
 
 func TestBridge_Terminal_Title_ThrowsOnError(t *testing.T) {
@@ -1104,18 +1109,20 @@ func TestBridge_Terminal_ScrollIntoView_ThrowsOnError(t *testing.T) {
 func TestBridge_StructuredError_NotFound_Shape(t *testing.T) {
 	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
 	// Catch the exception and inspect its shape.
-	got := evalWithSelection(t, sel, `
+	rt := New(WithBridge(&fakeBridge{}))
+	rt.vm.Set("sel", rt.wrapSelection(sel))
+	err := rt.Execute(`
 		try {
 			sel.click();
-			"no_error";
+			$output = "no_error";
 		} catch(e) {
-			JSON.stringify({code: e.code, message: e.message, selector: e.selector});
+			$output = JSON.stringify({code: e.code, message: e.message, selector: e.selector});
 		}
 	`)
-	s, ok := got.(string)
-	if !ok {
-		t.Fatalf("expected string from JSON.stringify, got %T: %v", got, got)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
 	}
+	s := rt.Output().String()
 	if !strings.Contains(s, `"code":"NOT_FOUND"`) {
 		t.Fatalf("expected code NOT_FOUND in %s", s)
 	}
@@ -1129,18 +1136,20 @@ func TestBridge_StructuredError_NotFound_Shape(t *testing.T) {
 
 func TestBridge_StructuredError_Timeout_Shape(t *testing.T) {
 	sel := axquery.NewSelectionError(&axquery.TimeoutError{Selector: "AXButton", Duration: "5s"}, "AXButton")
-	got := evalWithSelection(t, sel, `
+	rt := New(WithBridge(&fakeBridge{}))
+	rt.vm.Set("sel", rt.wrapSelection(sel))
+	err := rt.Execute(`
 		try {
 			sel.text();
-			"no_error";
+			$output = "no_error";
 		} catch(e) {
-			JSON.stringify({code: e.code, selector: e.selector});
+			$output = JSON.stringify({code: e.code, selector: e.selector});
 		}
 	`)
-	s, ok := got.(string)
-	if !ok {
-		t.Fatalf("expected string, got %T: %v", got, got)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
 	}
+	s := rt.Output().String()
 	if !strings.Contains(s, `"code":"TIMEOUT"`) {
 		t.Fatalf("expected code TIMEOUT in %s", s)
 	}
@@ -1148,18 +1157,20 @@ func TestBridge_StructuredError_Timeout_Shape(t *testing.T) {
 
 func TestBridge_StructuredError_Ambiguous_Shape(t *testing.T) {
 	sel := axquery.NewSelectionError(&axquery.AmbiguousError{Selector: "AXButton", Count: 3}, "AXButton")
-	got := evalWithSelection(t, sel, `
+	rt := New(WithBridge(&fakeBridge{}))
+	rt.vm.Set("sel", rt.wrapSelection(sel))
+	err := rt.Execute(`
 		try {
 			sel.click();
-			"no_error";
+			$output = "no_error";
 		} catch(e) {
-			JSON.stringify({code: e.code, count: e.count});
+			$output = JSON.stringify({code: e.code, count: e.count});
 		}
 	`)
-	s, ok := got.(string)
-	if !ok {
-		t.Fatalf("expected string, got %T: %v", got, got)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
 	}
+	s := rt.Output().String()
 	if !strings.Contains(s, `"code":"AMBIGUOUS"`) {
 		t.Fatalf("expected code AMBIGUOUS in %s", s)
 	}
@@ -1170,18 +1181,20 @@ func TestBridge_StructuredError_Ambiguous_Shape(t *testing.T) {
 
 func TestBridge_StructuredError_InvalidSelector_Shape(t *testing.T) {
 	sel := axquery.NewSelectionError(&axquery.InvalidSelectorError{Selector: "???", Reason: "bad syntax"}, "???")
-	got := evalWithSelection(t, sel, `
+	rt := New(WithBridge(&fakeBridge{}))
+	rt.vm.Set("sel", rt.wrapSelection(sel))
+	err := rt.Execute(`
 		try {
 			sel.text();
-			"no_error";
+			$output = "no_error";
 		} catch(e) {
-			JSON.stringify({code: e.code, selector: e.selector});
+			$output = JSON.stringify({code: e.code, selector: e.selector});
 		}
 	`)
-	s, ok := got.(string)
-	if !ok {
-		t.Fatalf("expected string, got %T: %v", got, got)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
 	}
+	s := rt.Output().String()
 	if !strings.Contains(s, `"code":"INVALID_SELECTOR"`) {
 		t.Fatalf("expected code INVALID_SELECTOR in %s", s)
 	}
@@ -1189,18 +1202,20 @@ func TestBridge_StructuredError_InvalidSelector_Shape(t *testing.T) {
 
 func TestBridge_StructuredError_NotActionable_Shape(t *testing.T) {
 	sel := axquery.NewSelectionError(&axquery.NotActionableError{Action: "click", Reason: "element disabled"}, "AXButton")
-	got := evalWithSelection(t, sel, `
+	rt := New(WithBridge(&fakeBridge{}))
+	rt.vm.Set("sel", rt.wrapSelection(sel))
+	err := rt.Execute(`
 		try {
 			sel.click();
-			"no_error";
+			$output = "no_error";
 		} catch(e) {
-			JSON.stringify({code: e.code, action: e.action});
+			$output = JSON.stringify({code: e.code, action: e.action});
 		}
 	`)
-	s, ok := got.(string)
-	if !ok {
-		t.Fatalf("expected string, got %T: %v", got, got)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
 	}
+	s := rt.Output().String()
 	if !strings.Contains(s, `"code":"NOT_ACTIONABLE"`) {
 		t.Fatalf("expected code NOT_ACTIONABLE in %s", s)
 	}
@@ -1211,18 +1226,20 @@ func TestBridge_StructuredError_NotActionable_Shape(t *testing.T) {
 
 func TestBridge_StructuredError_GenericError_Shape(t *testing.T) {
 	sel := axquery.NewSelectionError(fmt.Errorf("something unknown"), "AXButton")
-	got := evalWithSelection(t, sel, `
+	rt := New(WithBridge(&fakeBridge{}))
+	rt.vm.Set("sel", rt.wrapSelection(sel))
+	err := rt.Execute(`
 		try {
 			sel.click();
-			"no_error";
+			$output = "no_error";
 		} catch(e) {
-			JSON.stringify({code: e.code, message: e.message});
+			$output = JSON.stringify({code: e.code, message: e.message});
 		}
 	`)
-	s, ok := got.(string)
-	if !ok {
-		t.Fatalf("expected string, got %T: %v", got, got)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
 	}
+	s := rt.Output().String()
 	if !strings.Contains(s, `"code":"ERROR"`) {
 		t.Fatalf("expected code ERROR in %s", s)
 	}
@@ -1271,14 +1288,16 @@ func TestBridge_Chain_FindThenClick_ThrowsNotFound(t *testing.T) {
 
 func TestBridge_Err_ReturnsStructuredObject_NotFound(t *testing.T) {
 	sel := axquery.NewSelectionError(&axquery.NotFoundError{Selector: "AXButton"}, "AXButton")
-	got := evalWithSelection(t, sel, `
+	rt := New(WithBridge(&fakeBridge{}))
+	rt.vm.Set("sel", rt.wrapSelection(sel))
+	err := rt.Execute(`
 		var e = sel.err();
-		JSON.stringify({code: e.code, message: e.message, selector: e.selector});
+		$output = JSON.stringify({code: e.code, message: e.message, selector: e.selector});
 	`)
-	s, ok := got.(string)
-	if !ok {
-		t.Fatalf("expected string from JSON.stringify, got %T: %v", got, got)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
 	}
+	s := rt.Output().String()
 	if !strings.Contains(s, `"code":"NOT_FOUND"`) {
 		t.Fatalf("expected code NOT_FOUND in err() result: %s", s)
 	}
@@ -1289,14 +1308,16 @@ func TestBridge_Err_ReturnsStructuredObject_NotFound(t *testing.T) {
 
 func TestBridge_Err_ReturnsStructuredObject_Timeout(t *testing.T) {
 	sel := axquery.NewSelectionError(&axquery.TimeoutError{Selector: "AXButton", Duration: "3s"}, "AXButton")
-	got := evalWithSelection(t, sel, `
+	rt := New(WithBridge(&fakeBridge{}))
+	rt.vm.Set("sel", rt.wrapSelection(sel))
+	err := rt.Execute(`
 		var e = sel.err();
-		JSON.stringify({code: e.code, selector: e.selector});
+		$output = JSON.stringify({code: e.code, selector: e.selector});
 	`)
-	s, ok := got.(string)
-	if !ok {
-		t.Fatalf("expected string, got %T: %v", got, got)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
 	}
+	s := rt.Output().String()
 	if !strings.Contains(s, `"code":"TIMEOUT"`) {
 		t.Fatalf("expected code TIMEOUT in %s", s)
 	}
@@ -1304,14 +1325,16 @@ func TestBridge_Err_ReturnsStructuredObject_Timeout(t *testing.T) {
 
 func TestBridge_Err_ReturnsStructuredObject_Generic(t *testing.T) {
 	sel := axquery.NewSelectionError(fmt.Errorf("some generic error"), "AXButton")
-	got := evalWithSelection(t, sel, `
+	rt := New(WithBridge(&fakeBridge{}))
+	rt.vm.Set("sel", rt.wrapSelection(sel))
+	err := rt.Execute(`
 		var e = sel.err();
-		JSON.stringify({code: e.code, message: e.message});
+		$output = JSON.stringify({code: e.code, message: e.message});
 	`)
-	s, ok := got.(string)
-	if !ok {
-		t.Fatalf("expected string, got %T: %v", got, got)
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
 	}
+	s := rt.Output().String()
 	if !strings.Contains(s, `"code":"ERROR"`) {
 		t.Fatalf("expected code ERROR in %s", s)
 	}

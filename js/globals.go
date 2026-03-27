@@ -202,12 +202,13 @@ func (r *Runtime) injectInput() {
 }
 
 // ---------------------------------------------------------------------------
-// $output — output object (writable by scripts)
+// $output — output variable (writable by scripts, any JS type)
 // ---------------------------------------------------------------------------
 
 func (r *Runtime) injectOutput() {
-	r.outputObj = r.vm.NewObject()
-	r.vm.Set("$output", r.outputObj)
+	// Initialize $output as an empty object so scripts can do $output.foo = "bar".
+	// Scripts may also reassign $output entirely: $output = 42, $output = [1,2,3].
+	r.vm.Set("$output", r.vm.NewObject())
 }
 
 // ---------------------------------------------------------------------------
