@@ -1,0 +1,4 @@
+# Coverage artifacts
+coverage.out
+coverage_*.out
+coverage*.html
